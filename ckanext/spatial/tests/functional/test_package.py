@@ -1,147 +1,141 @@
-import json
-from nose.tools import assert_equals
+import logging
+from pprint import pprint
 
-from ckan.model import Session
-from ckan.lib.helpers import url_for
+from ckan.model import Package, Session
+from ckan.lib.helpers import url_for,json
 
-try:
-    import ckan.new_tests.helpers as helpers
-    import ckan.new_tests.factories as factories
-except ImportError:
-    import ckan.tests.helpers as helpers
-    import ckan.tests.factories as factories
-
+from ckan.tests import CreateTestData
+from ckan.tests.functional.base import FunctionalTestCase
 from ckanext.spatial.model import PackageExtent
-from ckanext.spatial.geoalchemy_common import legacy_geoalchemy
+
 from ckanext.spatial.tests.base import SpatialTestBase
 
+log = logging.getLogger(__name__)
 
-class TestSpatialExtra(SpatialTestBase, helpers.FunctionalTestBase):
 
-    def test_spatial_extra(self):
-        app = self._get_test_app()
+class TestPackageController(FunctionalTestCase,SpatialTestBase):
 
-        user = factories.User()
-        env = {'REMOTE_USER': user['name'].encode('ascii')}
-        dataset = factories.Dataset(user=user)
+    @classmethod
+    def setup_class(cls):
+        SpatialTestBase.setup_class()
+        cls.extra_environ = {'REMOTE_USER': 'annafan'}
 
-        offset = url_for(controller='package', action='edit', id=dataset['id'])
-        res = app.get(offset, extra_environ=env)
+    def setup(self):
+        CreateTestData.create()
 
-        form = res.forms[1]
-        form['extras__0__key'] = u'spatial'
-        form['extras__0__value'] = self.geojson_examples['point']
+    def teardown(self):
+        CreateTestData.delete()
 
-        res = helpers.submit_and_follow(app, form, env, 'save')
+    def test_new(self):
+        name = 'test-spatial-dataset-1'
 
-        assert 'Error' not in res, res
+        offset = url_for(controller='package', action='new')
+        res = self.app.get(offset, extra_environ=self.extra_environ)
+        assert 'Add - Datasets' in res
+        fv = res.forms['dataset-edit']
+        prefix = ''
+        fv[prefix + 'name'] = name
+        fv[prefix+'extras__0__key'] = u'spatial'
+        fv[prefix+'extras__0__value'] = self.geojson_examples['point']
 
-        package_extent = Session.query(PackageExtent) \
-            .filter(PackageExtent.package_id == dataset['id']).first()
+        res = fv.submit('save', extra_environ=self.extra_environ)
+        assert not 'Error' in res, res
+
+        package = Package.get(name)
+
+        # Check that a PackageExtent object has been created
+        package_extent = Session.query(PackageExtent).filter(PackageExtent.package_id==package.id).first()
 
         geojson = json.loads(self.geojson_examples['point'])
 
-        assert_equals(package_extent.package_id, dataset['id'])
-        if legacy_geoalchemy:
-            assert_equals(Session.scalar(package_extent.the_geom.x),
-                          geojson['coordinates'][0])
-            assert_equals(Session.scalar(package_extent.the_geom.y),
-                          geojson['coordinates'][1])
-            assert_equals(Session.scalar(package_extent.the_geom.srid),
-                          self.db_srid)
-        else:
-            from sqlalchemy import func
-            assert_equals(
-                Session.query(func.ST_X(package_extent.the_geom)).first()[0],
-                geojson['coordinates'][0])
-            assert_equals(
-                Session.query(func.ST_Y(package_extent.the_geom)).first()[0],
-                geojson['coordinates'][1])
-            assert_equals(package_extent.the_geom.srid, self.db_srid)
+        assert package_extent
+        assert package_extent.package_id == package.id
+        assert Session.scalar(package_extent.the_geom.x) == geojson['coordinates'][0]
+        assert Session.scalar(package_extent.the_geom.y) == geojson['coordinates'][1]
+        assert Session.scalar(package_extent.the_geom.srid) == self.db_srid
 
-    def test_spatial_extra_edit(self):
-        app = self._get_test_app()
+    def test_new_bad_json(self):
+        name = 'test-spatial-dataset-2'
 
-        user = factories.User()
-        env = {'REMOTE_USER': user['name'].encode('ascii')}
-        dataset = factories.Dataset(user=user)
+        offset = url_for(controller='package', action='new')
+        res = self.app.get(offset, extra_environ=self.extra_environ)
+        assert 'Add - Datasets' in res
+        fv = res.forms['dataset-edit']
+        prefix = ''
+        fv[prefix + 'name'] = name
+        fv[prefix+'extras__0__key'] = u'spatial'
+        fv[prefix+'extras__0__value'] = u'{"Type":Bad Json]'
 
-        offset = url_for(controller='package', action='edit', id=dataset['id'])
-        res = app.get(offset, extra_environ=env)
-
-        form = res.forms[1]
-        form['extras__0__key'] = u'spatial'
-        form['extras__0__value'] = self.geojson_examples['point']
-
-        res = helpers.submit_and_follow(app, form, env, 'save')
-
-        assert 'Error' not in res, res
-
-        res = app.get(offset, extra_environ=env)
-
-        form = res.forms[1]
-        form['extras__0__key'] = u'spatial'
-        form['extras__0__value'] = self.geojson_examples['polygon']
-
-        res = helpers.submit_and_follow(app, form, env, 'save')
-
-        assert 'Error' not in res, res
-
-        package_extent = Session.query(PackageExtent) \
-            .filter(PackageExtent.package_id == dataset['id']).first()
-
-        assert_equals(package_extent.package_id, dataset['id'])
-        if legacy_geoalchemy:
-            assert_equals(
-                Session.scalar(package_extent.the_geom.geometry_type),
-                'ST_Polygon')
-            assert_equals(
-                Session.scalar(package_extent.the_geom.srid),
-                self.db_srid)
-        else:
-            from sqlalchemy import func
-            assert_equals(
-                Session.query(
-                    func.ST_GeometryType(package_extent.the_geom)).first()[0],
-                'ST_Polygon')
-            assert_equals(package_extent.the_geom.srid, self.db_srid)
-
-    def test_spatial_extra_bad_json(self):
-        app = self._get_test_app()
-
-        user = factories.User()
-        env = {'REMOTE_USER': user['name'].encode('ascii')}
-        dataset = factories.Dataset(user=user)
-
-        offset = url_for(controller='package', action='edit', id=dataset['id'])
-        res = app.get(offset, extra_environ=env)
-
-        form = res.forms[1]
-        form['extras__0__key'] = u'spatial'
-        form['extras__0__value'] = u'{"Type":Bad Json]'
-
-        res = helpers.webtest_submit(form, extra_environ=env, name='save')
-
+        res = fv.submit('save', extra_environ=self.extra_environ)
         assert 'Error' in res, res
         assert 'Spatial' in res
         assert 'Error decoding JSON object' in res
 
-    def test_spatial_extra_bad_geojson(self):
-        app = self._get_test_app()
+        # Check that package was not created
+        assert not Package.get(name)
 
-        user = factories.User()
-        env = {'REMOTE_USER': user['name'].encode('ascii')}
-        dataset = factories.Dataset(user=user)
+    def test_new_bad_geojson(self):
+        name = 'test-spatial-dataset-3'
 
-        offset = url_for(controller='package', action='edit', id=dataset['id'])
-        res = app.get(offset, extra_environ=env)
+        offset = url_for(controller='package', action='new')
+        res = self.app.get(offset, extra_environ=self.extra_environ)
+        assert 'Add - Datasets' in res
+        fv = res.forms['dataset-edit']
+        prefix = ''
+        fv[prefix + 'name'] = name
+        fv[prefix+'extras__0__key'] = u'spatial'
+        fv[prefix+'extras__0__value'] = u'{"Type":"Bad_GeoJSON","a":2}'
 
-        form = res.forms[1]
-        form['extras__0__key'] = u'spatial'
-        form['extras__0__value'] = u'{"Type":"Bad_GeoJSON","a":2}'
-
-        res = helpers.webtest_submit(form, extra_environ=env, name='save')
-
+        res = fv.submit('save', extra_environ=self.extra_environ)
         assert 'Error' in res, res
         assert 'Spatial' in res
         assert 'Error creating geometry' in res
+
+        # Check that package was not created
+        assert not Package.get(name)
+
+    def test_edit(self):
+
+        name = 'annakarenina'
+
+        offset = url_for(controller='package', action='edit',id=name)
+        res = self.app.get(offset, extra_environ=self.extra_environ)
+        assert 'Edit - Datasets' in res
+        fv = res.forms['dataset-edit']
+        prefix = ''
+        fv[prefix+'extras__1__key'] = u'spatial'
+        fv[prefix+'extras__1__value'] = self.geojson_examples['point']
+
+        res = fv.submit('save', extra_environ=self.extra_environ)
+        assert not 'Error' in res, res
+
+        package = Package.get(name)
+
+        # Check that a PackageExtent object has been created
+        package_extent = Session.query(PackageExtent).filter(PackageExtent.package_id==package.id).first()
+        geojson = json.loads(self.geojson_examples['point'])
+
+        assert package_extent
+        assert package_extent.package_id == package.id
+        assert Session.scalar(package_extent.the_geom.x) == geojson['coordinates'][0]
+        assert Session.scalar(package_extent.the_geom.y) == geojson['coordinates'][1]
+        assert Session.scalar(package_extent.the_geom.srid) == self.db_srid
+
+        # Update the spatial extra
+        offset = url_for(controller='package', action='edit',id=name)
+        res = self.app.get(offset, extra_environ=self.extra_environ)
+        assert 'Edit - Datasets' in res
+        fv = res.forms['dataset-edit']
+        prefix = ''
+        fv[prefix+'extras__1__value'] = self.geojson_examples['polygon']
+
+        res = fv.submit('save', extra_environ=self.extra_environ)
+        assert not 'Error' in res, res
+
+        # Check that the PackageExtent object has been updated
+        package_extent = Session.query(PackageExtent).filter(PackageExtent.package_id==package.id).first()
+        assert package_extent
+        assert package_extent.package_id == package.id
+        assert Session.scalar(package_extent.the_geom.geometry_type) == 'ST_Polygon'
+        assert Session.scalar(package_extent.the_geom.srid) == self.db_srid
+

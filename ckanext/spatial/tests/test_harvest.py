@@ -3,17 +3,20 @@ import lxml
 from nose.plugins.skip import SkipTest
 from nose.tools import assert_equal, assert_in, assert_raises
 
+from ckan import plugins
 from ckan.lib.base import config
 from ckan import model
-from ckan.model import Session, Package
+from ckan.model import Session,Package
 from ckan.logic.schema import default_update_package_schema
 from ckan.logic import get_action
-from ckanext.harvest.model import (HarvestSource, HarvestJob, HarvestObject)
-from ckanext.spatial.validation import Validators
+from ckanext.harvest.model import (setup as harvest_model_setup,
+                                   HarvestSource, HarvestJob, HarvestObject)
+from ckanext.spatial.validation import Validators, SchematronValidator
 from ckanext.spatial.harvesters.gemini import (GeminiDocHarvester,
-                                               GeminiWafHarvester,
-                                               GeminiHarvester)
+                                        GeminiWafHarvester,
+                                        GeminiHarvester)
 from ckanext.spatial.harvesters.base import SpatialHarvester
+from ckanext.spatial.model.package_extent import setup as spatial_db_setup
 from ckanext.spatial.tests.base import SpatialTestBase
 
 from xml_file_server import serve
@@ -21,8 +24,11 @@ from xml_file_server import serve
 # Start simple HTTP server that serves XML test files
 serve()
 
-
 class HarvestFixtureBase(SpatialTestBase):
+
+    @classmethod
+    def setup_class(cls):
+        SpatialTestBase.setup_class()
 
     def setup(self):
         # Add sysadmin user
@@ -111,8 +117,8 @@ class TestHarvest(HarvestFixtureBase):
 
         # Create source
         source_fixture = {
-            'title': 'Test Source',
-            'name': 'test-source',
+			'title': 'Test Source',
+			'name': 'test-source',
             'url': u'http://127.0.0.1:8999/gemini2.1-waf/index.html',
             'source_type': u'gemini-waf'
         }
@@ -136,7 +142,7 @@ class TestHarvest(HarvestFixtureBase):
             objects.append(obj)
             harvester.import_stage(obj)
 
-        pkgs = Session.query(Package).filter(Package.type!=u'harvest').all()
+        pkgs = Session.query(Package).filter(Package.type!=u'harvest_source').all()
 
         assert_equal(len(pkgs), 2)
 
@@ -150,8 +156,8 @@ class TestHarvest(HarvestFixtureBase):
 
         # Create source
         source_fixture = {
-            'title': 'Test Source',
-            'name': 'test-source',
+			'title': 'Test Source',
+			'name': 'test-source',
             'url': u'http://127.0.0.1:8999/gemini2.1/service1.xml',
             'source_type': u'gemini-single'
         }
@@ -212,7 +218,7 @@ class TestHarvest(HarvestFixtureBase):
             'bbox-north-lat': u'61.0243',
             'bbox-south-lat': u'54.4764484375',
             'bbox-west-long': u'-9.099786875',
-            'spatial': u'{"type": "Polygon", "coordinates": [[[0.5242365625, 54.4764484375], [-9.099786875, 54.4764484375], [-9.099786875, 61.0243], [0.5242365625, 61.0243], [0.5242365625, 54.4764484375]]]}',
+            'spatial': u'{"type": "Polygon", "coordinates": [[[0.5242365625, 54.4764484375], [0.5242365625, 61.0243], [-9.099786875, 61.0243], [-9.099786875, 54.4764484375], [0.5242365625, 54.4764484375]]]}',
             # Other
             'coupled-resource': u'[{"href": ["http://scotgovsdi.edina.ac.uk/srv/en/csw?service=CSW&request=GetRecordById&version=2.0.2&outputSchema=http://www.isotc211.org/2005/gmd&elementSetName=full&id=250ea276-48e2-4189-8a89-fcc4ca92d652"], "uuid": ["250ea276-48e2-4189-8a89-fcc4ca92d652"], "title": []}]',
             'dataset-reference-date': u'[{"type": "publication", "value": "2011-09-08"}]',
@@ -238,6 +244,7 @@ class TestHarvest(HarvestFixtureBase):
         expected_resource = {
             'ckan_recommended_wms_preview': 'True',
             'description': 'Link to the GetCapabilities request for this service',
+            'format': 'wms', # Newer CKAN versions lower case resource formats
             'name': 'Web Map Service (WMS)',
             'resource_locator_function': 'download',
             'resource_locator_protocol': 'OGC:WMS-1.3.0-http-get-capabilities',
@@ -253,14 +260,13 @@ class TestHarvest(HarvestFixtureBase):
                 raise AssertionError('Unexpected value in resource for %s: %s (was expecting %s)' % \
                     (key, resource[key], value))
         assert datetime.strptime(resource['verified_date'],'%Y-%m-%dT%H:%M:%S.%f').date() == date.today()
-        assert resource['format'].lower() == 'wms'
 
     def test_harvest_fields_dataset(self):
 
         # Create source
         source_fixture = {
-            'title': 'Test Source',
-            'name': 'test-source',
+			'title': 'Test Source',
+			'name': 'test-source',
             'url': u'http://127.0.0.1:8999/gemini2.1/dataset1.xml',
             'source_type': u'gemini-single'
         }
@@ -320,7 +326,7 @@ class TestHarvest(HarvestFixtureBase):
             'bbox-north-lat': u'61.06066944',
             'bbox-south-lat': u'54.529947158',
             'bbox-west-long': u'-8.97114288',
-            'spatial': u'{"type": "Polygon", "coordinates": [[[0.205857204, 54.529947158], [-8.97114288, 54.529947158], [-8.97114288, 61.06066944], [0.205857204, 61.06066944], [0.205857204, 54.529947158]]]}',
+            'spatial': u'{"type": "Polygon", "coordinates": [[[0.205857204, 54.529947158], [0.205857204, 61.06066944], [-8.97114288, 61.06066944], [-8.97114288, 54.529947158], [0.205857204, 54.529947158]]]}',
             # Other
             'coupled-resource': u'[]',
             'dataset-reference-date': u'[{"type": "creation", "value": "2004-02"}, {"type": "revision", "value": "2006-07-03"}]',
@@ -362,8 +368,8 @@ class TestHarvest(HarvestFixtureBase):
     def test_harvest_error_bad_xml(self):
         # Create source
         source_fixture = {
-            'title': 'Test Source',
-            'name': 'test-source',
+			'title': 'Test Source',
+			'name': 'test-source',
             'url': u'http://127.0.0.1:8999/gemini2.1/error_bad_xml.xml',
             'source_type': u'gemini-single'
         }
@@ -388,8 +394,8 @@ class TestHarvest(HarvestFixtureBase):
     def test_harvest_error_404(self):
         # Create source
         source_fixture = {
-            'title': 'Test Source',
-            'name': 'test-source',
+			'title': 'Test Source',
+			'name': 'test-source',
             'url': u'http://127.0.0.1:8999/gemini2.1/not_there.xml',
             'source_type': u'gemini-single'
         }
@@ -410,8 +416,8 @@ class TestHarvest(HarvestFixtureBase):
 
         # Create source
         source_fixture = {
-            'title': 'Test Source',
-            'name': 'test-source',
+			'title': 'Test Source',
+			'name': 'test-source',
             'url': u'http://127.0.0.1:8999/gemini2.1/error_validation.xml',
             'source_type': u'gemini-single'
         }
@@ -453,8 +459,8 @@ class TestHarvest(HarvestFixtureBase):
 
         # Create source
         source_fixture = {
-            'title': 'Test Source',
-            'name': 'test-source',
+			'title': 'Test Source',
+			'name': 'test-source',
             'url': u'http://127.0.0.1:8999/gemini2.1/dataset1.xml',
             'source_type': u'gemini-single'
         }
@@ -519,8 +525,8 @@ class TestHarvest(HarvestFixtureBase):
 
         # Create source
         source_fixture = {
-            'title': 'Test Source',
-            'name': 'test-source',
+			'title': 'Test Source',
+			'name': 'test-source',
             'url': u'http://127.0.0.1:8999/gemini2.1/service1.xml',
             'source_type': u'gemini-single'
         }
@@ -592,8 +598,8 @@ class TestHarvest(HarvestFixtureBase):
 
         # Create source1
         source1_fixture = {
-            'title': 'Test Source',
-            'name': 'test-source',
+		    'title': 'Test Source',
+			'name': 'test-source',
             'url': u'http://127.0.0.1:8999/gemini2.1/source1/same_dataset.xml',
             'source_type': u'gemini-single'
         }
@@ -614,8 +620,8 @@ class TestHarvest(HarvestFixtureBase):
         # (As of https://github.com/okfn/ckanext-inspire/commit/9fb67
         # we are no longer throwing an exception when this happens)
         source2_fixture = {
-            'title': 'Test Source 2',
-            'name': 'test-source-2',
+			'title': 'Test Source 2',
+			'name': 'test-source-2',
             'url': u'http://127.0.0.1:8999/gemini2.1/source2/same_dataset.xml',
             'source_type': u'gemini-single'
         }
@@ -661,8 +667,8 @@ class TestHarvest(HarvestFixtureBase):
 
         # Create source1
         source1_fixture = {
-            'title': 'Test Source',
-            'name': 'test-source',
+		    'title': 'Test Source',
+			'name': 'test-source',
             'url': u'http://127.0.0.1:8999/gemini2.1/source1/same_dataset.xml',
             'source_type': u'gemini-single'
         }
@@ -684,8 +690,8 @@ class TestHarvest(HarvestFixtureBase):
 
         # Harvest the same document, unchanged, from another source
         source2_fixture = {
-            'title': 'Test Source 2',
-            'name': 'test-source-2',
+			'title': 'Test Source 2',
+			'name': 'test-source-2',
             'url': u'http://127.0.0.1:8999/gemini2.1/source2/same_dataset.xml',
             'source_type': u'gemini-single'
         }
@@ -708,8 +714,8 @@ class TestHarvest(HarvestFixtureBase):
 
         # Create source1
         source1_fixture = {
-            'title': 'Test Source',
-            'name': 'test-source',
+		    'title': 'Test Source',
+			'name': 'test-source',
             'url': u'http://127.0.0.1:8999/gemini2.1/service1.xml',
             'source_type': u'gemini-single'
         }
@@ -727,8 +733,8 @@ class TestHarvest(HarvestFixtureBase):
 
         # Harvest the same document GUID but with a newer date, from another source.
         source2_fixture = {
-            'title': 'Test Source 2',
-            'name': 'test-source-2',
+			'title': 'Test Source 2',
+			'name': 'test-source-2',
             'url': u'http://127.0.0.1:8999/gemini2.1/service1_newer.xml',
             'source_type': u'gemini-single'
         }
@@ -754,8 +760,8 @@ class TestHarvest(HarvestFixtureBase):
 
         # Create source
         source_fixture = {
-            'title': 'Test Source',
-            'name': 'test-source',
+			'title': 'Test Source',
+			'name': 'test-source',
             'url': u'http://127.0.0.1:8999/gemini2.1/dataset1.xml',
             'source_type': u'gemini-single'
         }
@@ -817,8 +823,8 @@ class TestGatherMethods(HarvestFixtureBase):
         HarvestFixtureBase.setup(self)
         # Create source
         source_fixture = {
-            'title': 'Test Source',
-            'name': 'test-source',
+			'title': 'Test Source',
+			'name': 'test-source',
             'url': u'http://127.0.0.1:8999/gemini2.1/dataset1.xml',
             'source_type': u'gemini-single'
         }
@@ -935,7 +941,6 @@ class TestImportStageTools:
         assert_equal(GeminiHarvester._process_responsible_organisation(responsible_organisation),
                      ('', []))
 
-
 class TestValidation(HarvestFixtureBase):
 
     @classmethod
@@ -950,8 +955,8 @@ class TestValidation(HarvestFixtureBase):
     def get_validation_errors(self, validation_test_filename):
         # Create source
         source_fixture = {
-            'title': 'Test Source',
-            'name': 'test-source',
+			'title': 'Test Source',
+			'name': 'test-source',
             'url': u'http://127.0.0.1:8999/gemini2.1/validation/%s' % validation_test_filename,
             'source_type': u'gemini-single'
         }

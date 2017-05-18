@@ -11,8 +11,7 @@ this.ckan.module('spatial-query', function ($, _) {
         weight: 2,
         opacity: 1,
         fillColor: '#F06F64',
-        fillOpacity: 0.1,
-        clickable: false
+        fillOpacity: 0.1
       },
       default_extent: [[90, 180], [-90, -180]]
     },
@@ -87,29 +86,21 @@ this.ckan.module('spatial-query', function ($, _) {
       });
 
       // OK map time
-      map = ckan.commonLeafletMap(
-        'dataset-map-container',
-        this.options.map_config,
-        {
-          attributionControl: false,
-          drawControlTooltips: false
-        }
-      );
+      map = ckan.commonLeafletMap('dataset-map-container', this.options.map_config, {attributionControl: false});
 
       // Initialize the draw control
       map.addControl(new L.Control.Draw({
         position: 'topright',
-        draw: {
-          polyline: false,
-          polygon: false,
-          circle: false,
-          marker: false,
-          rectangle: {shapeOptions: module.options.style}
+        polyline: false, polygon: false,
+        circle: false, marker: false,
+        rectangle: {
+          shapeOptions: module.options.style,
+          title: 'Draw rectangle'
         }
       }));
 
       // OK add the expander
-      $('a.leaflet-draw-draw-rectangle', module.el).on('click', function(e) {
+      $('.leaflet-control-draw a', module.el).on('click', function(e) {
         if (!is_exanded) {
           $('body').addClass('dataset-map-expanded');
           if (should_zoom && !extentLayer) {
@@ -150,11 +141,11 @@ this.ckan.module('spatial-query', function ($, _) {
       });
 
       // When user finishes drawing the box, record it and add it to the map
-      map.on('draw:created', function (e) {
+      map.on('draw:rectangle-created', function (e) {
         if (extentLayer) {
           map.removeLayer(extentLayer);
         }
-        extentLayer = e.layer;
+        extentLayer = e.rect;
         $('#ext_bbox').val(extentLayer.getBounds().toBBoxString());
         map.addLayer(extentLayer);
         $('.apply', buttons).removeClass('disabled').addClass('btn-primary');

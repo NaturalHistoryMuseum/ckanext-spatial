@@ -1,23 +1,24 @@
 import urllib2
 
-from ckan.lib.base import BaseController, c, request, \
-    response, render, abort
+from pylons.i18n import _
+
+import ckan.lib.helpers as h, json
+from ckan.lib.base import BaseController, c, g, request, \
+                          response, session, render, config, abort, redirect
 
 from ckan.model import Package
 
-
 class ViewController(BaseController):
 
-    def wms_preview(self, id):
-        # check if package exists
+    def wms_preview(self,id):
+        #check if package exists
         c.pkg = Package.get(id)
         if c.pkg is None:
             abort(404, 'Dataset not found')
 
         for res in c.pkg.resources:
             if res.format.lower() == 'wms':
-                c.wms_url = res.url \
-                    if '?' not in res.url else res.url.split('?')[0]
+                c.wms_url = res.url if not '?' in res.url else res.url.split('?')[0]
                 break
         if not c.wms_url:
             abort(400, 'This dataset does not have a WMS resource')
@@ -25,7 +26,7 @@ class ViewController(BaseController):
         return render('ckanext/spatial/wms_preview.html')
 
     def proxy(self):
-        if 'url' not in request.params:
+        if not 'url' in request.params:
             abort(400)
         try:
             server_response = urllib2.urlopen(request.params['url'])

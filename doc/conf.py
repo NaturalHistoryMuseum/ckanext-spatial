@@ -41,7 +41,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = u'ckanext-spatial'
-copyright = u'2015, Open Knowledge'
+copyright = u'2013, Open Knowledge Foundation'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -96,12 +96,6 @@ exclude_trees = ['.build']
 
 # The theme to use for HTML and HTML Help pages.  See the documentation for
 # a list of builtin themes.
-on_rtd = os.environ.get('READTHEDOCS', None) == 'True'
-if not on_rtd:
-    import sphinx_rtd_theme
-    html_theme = 'sphinx_rtd_theme'
-    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
-
 #html_theme = 'default'
 
 # Theme options are theme-specific and customize the look and feel of a theme
@@ -111,6 +105,14 @@ if not on_rtd:
 
 # Add any paths that contain custom themes here, relative to this directory.
 #html_theme_path = []
+sys.path.append(os.path.abspath('_themes'))
+html_theme_path = ['_themes']
+html_theme = 'sphinx-theme-okfn'
+html_theme_options = {
+        'logo_icon': 'ckanlogo.png',
+        'show_version': False,
+        'show_okfn_logo': False,
+    }
 html_sidebars = {
     '**':  ['globaltoc.html']
 }
