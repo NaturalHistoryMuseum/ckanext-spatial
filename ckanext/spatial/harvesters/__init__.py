@@ -1,4 +1,6 @@
-# this is a namespace package
+#!/usr/bin/env python
+# encoding: utf-8
+
 try:
     import pkg_resources
     pkg_resources.declare_namespace(__name__)

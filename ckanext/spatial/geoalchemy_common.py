@@ -1,16 +1,13 @@
-'''
-Common codebase for GeoAlchemy and GeoAlchemy2
 
-It is assumed that the relevant library is already installed, as we check
-it against the CKAN version on startup
-'''
+#!/usr/bin/env python
+# encoding: utf-8
 
 from ckan.plugins import toolkit
 from ckan.model import meta, Session
 
 from sqlalchemy import types, Column, Table
 
-if toolkit.check_ckan_version(min_version='2.3'):
+if toolkit.check_ckan_version(min_version=u'2.3'):
     # CKAN >= 2.3, use GeoAlchemy2
 
     from geoalchemy2.elements import WKTElement
@@ -36,26 +33,33 @@ else:
 
 
 def postgis_version():
+    ''' '''
 
-    result = Session.execute('SELECT postgis_lib_version()')
+    result = Session.execute(u'SELECT postgis_lib_version()')
 
     return result.scalar()
 
 
 def setup_spatial_table(package_extent_class, db_srid=None):
+    '''
+
+    :param package_extent_class: 
+    :param db_srid:  (Default value = None)
+
+    '''
 
     if legacy_geoalchemy:
 
         package_extent_table = Table(
-            'package_extent', meta.metadata,
-            Column('package_id', types.UnicodeText, primary_key=True),
-            GeometryExtensionColumn('the_geom', Geometry(2, srid=db_srid))
+            u'package_extent', meta.metadata,
+            Column(u'package_id', types.UnicodeText, primary_key=True),
+            GeometryExtensionColumn(u'the_geom', Geometry(2, srid=db_srid))
         )
 
         meta.mapper(
             package_extent_class,
             package_extent_table,
-            properties={'the_geom':
+            properties={u'the_geom':
                         GeometryColumn(package_extent_table.c.the_geom,
                                        comparator=PGComparator)}
         )
@@ -65,12 +69,12 @@ def setup_spatial_table(package_extent_class, db_srid=None):
 
         # PostGIS 1.5 requires management=True when defining the Geometry
         # field
-        management = (postgis_version()[:1] == '1')
+        management = (postgis_version()[:1] == u'1')
 
         package_extent_table = Table(
-            'package_extent', meta.metadata,
-            Column('package_id', types.UnicodeText, primary_key=True),
-            Column('the_geom', Geometry('GEOMETRY', srid=db_srid,
+            u'package_extent', meta.metadata,
+            Column(u'package_id', types.UnicodeText, primary_key=True),
+            Column(u'the_geom', Geometry(u'GEOMETRY', srid=db_srid,
                                         management=management)),
         )
 
@@ -80,5 +84,11 @@ def setup_spatial_table(package_extent_class, db_srid=None):
 
 
 def compare_geometry_fields(geom_field1, geom_field2):
+    '''
+
+    :param geom_field1: 
+    :param geom_field2: 
+
+    '''
 
     return Session.scalar(ST_Equals(geom_field1, geom_field2))

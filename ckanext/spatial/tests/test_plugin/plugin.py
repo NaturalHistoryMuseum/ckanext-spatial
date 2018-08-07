@@ -1,9 +1,18 @@
-from ckan import plugins as p
+#!/usr/bin/env python
+# encoding: utf-8
+
+from ckan.plugins import SingletonPlugin, implements, interfaces, toolkit
 
 
-class TestSpatialPlugin(p.SingletonPlugin):
+class TestSpatialPlugin(SingletonPlugin):
+    ''' '''
 
-    p.implements(p.IConfigurer, inherit=True)
+    implements(interfaces.IConfigurer, inherit=True)
 
     def update_config(self, config):
-        p.toolkit.add_template_directory(config, 'templates')
+        '''
+
+        :param config: 
+
+        '''
+        toolkit.add_template_directory(config, u'templates')
