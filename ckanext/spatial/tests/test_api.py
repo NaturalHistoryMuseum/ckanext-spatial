@@ -1,8 +1,11 @@
+#!/usr/bin/env python
+# encoding: utf-8
+
 from nose.plugins.skip import SkipTest
 from nose.tools import assert_equals, assert_raises
 
-from ckan.model import Session
 from ckan.lib.search import SearchError
+from ckan.model import Session
 try:
     import ckan.new_tests.helpers as helpers
     import ckan.new_tests.factories as factories
@@ -13,189 +16,249 @@ except ImportError:
 from ckanext.spatial.tests.base import SpatialTestBase
 
 extents = {
-    'nz': '{"type":"Polygon","coordinates":[[[174,-38],[176,-38],[176,-40],[174,-40],[174,-38]]]}',
-    'ohio': '{"type": "Polygon","coordinates": [[[-84,38],[-84,40],[-80,42],[-80,38],[-84,38]]]}',
-    'dateline': '{"type":"Polygon","coordinates":[[[169,70],[169,60],[192,60],[192,70],[169,70]]]}',
-    'dateline2': '{"type":"Polygon","coordinates":[[[170,60],[-170,60],[-170,70],[170,70],[170,60]]]}',
-}
+    u'nz': u'{"type":"Polygon","coordinates":[[[174,-38],[176,-38],[176,-40],[174,'
+           u'-40],[174,-38]]]}',
+    u'ohio': u'{"type": "Polygon","coordinates": [[[-84,38],[-84,40],[-80,42],[-80,'
+             u'38],[-84,38]]]}',
+    u'dateline': u'{"type":"Polygon","coordinates":[[[169,70],[169,60],[192,60],[192,'
+                 u'70],[169,70]]]}',
+    u'dateline2': u'{"type":"Polygon","coordinates":[[[170,60],[-170,60],[-170,70],'
+                  u'[170,70],[170,60]]]}',
+    }
 
 
 class TestAction(SpatialTestBase):
+    ''' '''
 
     def teardown(self):
+        ''' '''
         helpers.reset_db()
 
     def test_spatial_query(self):
+        ''' '''
 
         dataset = factories.Dataset(
-            extras=[{'key': 'spatial',
-                     'value': self.geojson_examples['point']}]
-        )
+            extras=[{
+                u'key': u'spatial',
+                u'value': self.geojson_examples[u'point']
+                }]
+            )
 
         result = helpers.call_action(
-            'package_search',
-            extras={'ext_bbox': '-180,-90,180,90'})
+            u'package_search',
+            extras={
+                u'ext_bbox': u'-180,-90,180,90'
+                })
 
-        assert_equals(result['count'], 1)
-        assert_equals(result['results'][0]['id'], dataset['id'])
+        assert_equals(result[u'count'], 1)
+        assert_equals(result[u'results'][0][u'id'], dataset[u'id'])
 
     def test_spatial_query_outside_bbox(self):
+        ''' '''
 
         factories.Dataset(
-            extras=[{'key': 'spatial',
-                     'value': self.geojson_examples['point']}]
-        )
+            extras=[{
+                u'key': u'spatial',
+                u'value': self.geojson_examples[u'point']
+                }]
+            )
 
         result = helpers.call_action(
-            'package_search',
-            extras={'ext_bbox': '-10,-20,10,20'})
+            u'package_search',
+            extras={
+                u'ext_bbox': u'-10,-20,10,20'
+                })
 
-        assert_equals(result['count'], 0)
+        assert_equals(result[u'count'], 0)
 
     def test_spatial_query_wrong_bbox(self):
+        ''' '''
 
         assert_raises(SearchError, helpers.call_action,
-                      'package_search', extras={'ext_bbox': '-10,-20,10,a'})
+                      u'package_search', extras={
+                u'ext_bbox': u'-10,-20,10,a'
+                })
 
     def test_spatial_query_nz(self):
+        ''' '''
 
         dataset = factories.Dataset(
-            extras=[{'key': 'spatial',
-                     'value': extents['nz']}]
-        )
+            extras=[{
+                u'key': u'spatial',
+                u'value': extents[u'nz']
+                }]
+            )
 
         result = helpers.call_action(
-            'package_search',
-            extras={'ext_bbox': '56,-54,189,-28'})
+            u'package_search',
+            extras={
+                u'ext_bbox': u'56,-54,189,-28'
+                })
 
-        assert_equals(result['count'], 1)
-        assert_equals(result['results'][0]['id'], dataset['id'])
+        assert_equals(result[u'count'], 1)
+        assert_equals(result[u'results'][0][u'id'], dataset[u'id'])
 
     def test_spatial_query_nz_wrap(self):
+        ''' '''
 
         dataset = factories.Dataset(
-            extras=[{'key': 'spatial',
-                     'value': extents['nz']}]
-        )
+            extras=[{
+                u'key': u'spatial',
+                u'value': extents[u'nz']
+                }]
+            )
 
         result = helpers.call_action(
-            'package_search',
-            extras={'ext_bbox': '-203,-54,-167,-28'})
+            u'package_search',
+            extras={
+                u'ext_bbox': u'-203,-54,-167,-28'
+                })
 
-        assert_equals(result['count'], 1)
-        assert_equals(result['results'][0]['id'], dataset['id'])
+        assert_equals(result[u'count'], 1)
+        assert_equals(result[u'results'][0][u'id'], dataset[u'id'])
 
     def test_spatial_query_ohio(self):
+        ''' '''
 
         dataset = factories.Dataset(
-            extras=[{'key': 'spatial',
-                     'value': extents['ohio']}]
-        )
+            extras=[{
+                u'key': u'spatial',
+                u'value': extents[u'ohio']
+                }]
+            )
 
         result = helpers.call_action(
-            'package_search',
-            extras={'ext_bbox': '-110,37,-78,53'})
+            u'package_search',
+            extras={
+                u'ext_bbox': u'-110,37,-78,53'
+                })
 
-        assert_equals(result['count'], 1)
-        assert_equals(result['results'][0]['id'], dataset['id'])
+        assert_equals(result[u'count'], 1)
+        assert_equals(result[u'results'][0][u'id'], dataset[u'id'])
 
     def test_spatial_query_ohio_wrap(self):
+        ''' '''
 
         dataset = factories.Dataset(
-            extras=[{'key': 'spatial',
-                     'value': extents['ohio']}]
-        )
+            extras=[{
+                u'key': u'spatial',
+                u'value': extents[u'ohio']
+                }]
+            )
 
         result = helpers.call_action(
-            'package_search',
-            extras={'ext_bbox': '258,37,281,51'})
+            u'package_search',
+            extras={
+                u'ext_bbox': u'258,37,281,51'
+                })
 
-        assert_equals(result['count'], 1)
-        assert_equals(result['results'][0]['id'], dataset['id'])
+        assert_equals(result[u'count'], 1)
+        assert_equals(result[u'results'][0][u'id'], dataset[u'id'])
 
     def test_spatial_query_dateline_1(self):
+        ''' '''
 
         dataset = factories.Dataset(
-            extras=[{'key': 'spatial',
-                     'value': extents['dateline']}]
-        )
+            extras=[{
+                u'key': u'spatial',
+                u'value': extents[u'dateline']
+                }]
+            )
 
         result = helpers.call_action(
-            'package_search',
-            extras={'ext_bbox': '-197,56,-128,70'})
+            u'package_search',
+            extras={
+                u'ext_bbox': u'-197,56,-128,70'
+                })
 
-        assert_equals(result['count'], 1)
-        assert_equals(result['results'][0]['id'], dataset['id'])
+        assert_equals(result[u'count'], 1)
+        assert_equals(result[u'results'][0][u'id'], dataset[u'id'])
 
     def test_spatial_query_dateline_2(self):
+        ''' '''
 
         dataset = factories.Dataset(
-            extras=[{'key': 'spatial',
-                     'value': extents['dateline']}]
-        )
+            extras=[{
+                u'key': u'spatial',
+                u'value': extents[u'dateline']
+                }]
+            )
 
         result = helpers.call_action(
-            'package_search',
-            extras={'ext_bbox': '162,54,237,70'})
+            u'package_search',
+            extras={
+                u'ext_bbox': u'162,54,237,70'
+                })
 
-        assert_equals(result['count'], 1)
-        assert_equals(result['results'][0]['id'], dataset['id'])
+        assert_equals(result[u'count'], 1)
+        assert_equals(result[u'results'][0][u'id'], dataset[u'id'])
 
     def test_spatial_query_dateline_3(self):
+        ''' '''
 
         dataset = factories.Dataset(
-            extras=[{'key': 'spatial',
-                     'value': extents['dateline2']}]
-        )
+            extras=[{
+                u'key': u'spatial',
+                u'value': extents[u'dateline2']
+                }]
+            )
 
         result = helpers.call_action(
-            'package_search',
-            extras={'ext_bbox': '-197,56,-128,70'})
+            u'package_search',
+            extras={
+                u'ext_bbox': u'-197,56,-128,70'
+                })
 
-        assert_equals(result['count'], 1)
-        assert_equals(result['results'][0]['id'], dataset['id'])
+        assert_equals(result[u'count'], 1)
+        assert_equals(result[u'results'][0][u'id'], dataset[u'id'])
 
     def test_spatial_query_dateline_4(self):
+        ''' '''
 
         dataset = factories.Dataset(
-            extras=[{'key': 'spatial',
-                     'value': extents['dateline2']}]
-        )
+            extras=[{
+                u'key': u'spatial',
+                u'value': extents[u'dateline2']
+                }]
+            )
 
         result = helpers.call_action(
-            'package_search',
-            extras={'ext_bbox': '162,54,237,70'})
+            u'package_search',
+            extras={
+                u'ext_bbox': u'162,54,237,70'
+                })
 
-        assert_equals(result['count'], 1)
-        assert_equals(result['results'][0]['id'], dataset['id'])
-
+        assert_equals(result[u'count'], 1)
+        assert_equals(result[u'results'][0][u'id'], dataset[u'id'])
 
 
 class TestHarvestedMetadataAPI(SpatialTestBase, helpers.FunctionalTestBase):
+    ''' '''
 
     def test_api(self):
+        ''' '''
         try:
             from ckanext.harvest.model import (HarvestObject, HarvestJob,
                                                HarvestSource,
                                                HarvestObjectExtra)
         except ImportError:
-            raise SkipTest('The harvester extension is needed for these tests')
+            raise SkipTest(u'The harvester extension is needed for these tests')
 
-        content1 = '<xml>Content 1</xml>'
+        content1 = u'<xml>Content 1</xml>'
         ho1 = HarvestObject(
-            guid='test-ho-1',
-            job=HarvestJob(source=HarvestSource(url='http://', type='xx')),
+            guid=u'test-ho-1',
+            job=HarvestJob(source=HarvestSource(url=u'http://', type=u'xx')),
             content=content1)
 
-        content2 = '<xml>Content 2</xml>'
-        original_content2 = '<xml>Original Content 2</xml>'
+        content2 = u'<xml>Content 2</xml>'
+        original_content2 = u'<xml>Original Content 2</xml>'
         ho2 = HarvestObject(
-            guid='test-ho-2',
-            job=HarvestJob(source=HarvestSource(url='http://', type='xx')),
+            guid=u'test-ho-2',
+            job=HarvestJob(source=HarvestSource(url=u'http://', type=u'xx')),
             content=content2)
 
         hoe = HarvestObjectExtra(
-            key='original_document',
+            key=u'original_document',
             value=original_content2,
             object=ho2)
 
@@ -214,23 +277,23 @@ class TestHarvestedMetadataAPI(SpatialTestBase, helpers.FunctionalTestBase):
         r = app.get(url)
         assert_equals(r.status_int, 301)
         assert ('/harvest/object/{0}'.format(object_id_1)
-                in r.headers['Location'])
+                in r.headers[u'Location'])
 
         url = '/api/2/rest/harvestobject/{0}/html'.format(object_id_1)
         r = app.get(url)
         assert_equals(r.status_int, 301)
         assert ('/harvest/object/{0}/html'.format(object_id_1)
-                in r.headers['Location'])
+                in r.headers[u'Location'])
 
         # Access object content
         url = '/harvest/object/{0}'.format(object_id_1)
         r = app.get(url)
         assert_equals(r.status_int, 200)
-        assert_equals(r.headers['Content-Type'],
-                      'application/xml; charset=utf-8')
+        assert_equals(r.headers[u'Content-Type'],
+                      u'application/xml; charset=utf-8')
         assert_equals(
             r.body,
-            '<?xml version="1.0" encoding="UTF-8"?>\n<xml>Content 1</xml>')
+            u'<?xml version="1.0" encoding="UTF-8"?>\n<xml>Content 1</xml>')
 
         # Access original content in object extra (if present)
         url = '/harvest/object/{0}/original'.format(object_id_1)
@@ -240,20 +303,20 @@ class TestHarvestedMetadataAPI(SpatialTestBase, helpers.FunctionalTestBase):
         url = '/harvest/object/{0}/original'.format(object_id_2)
         r = app.get(url)
         assert_equals(r.status_int, 200)
-        assert_equals(r.headers['Content-Type'],
-                      'application/xml; charset=utf-8')
+        assert_equals(r.headers[u'Content-Type'],
+                      u'application/xml; charset=utf-8')
         assert_equals(
             r.body,
-            '<?xml version="1.0" encoding="UTF-8"?>\n'
-            + '<xml>Original Content 2</xml>')
+            u'<?xml version="1.0" encoding="UTF-8"?>\n'
+            + u'<xml>Original Content 2</xml>')
 
         # Access HTML transformation
         url = '/harvest/object/{0}/html'.format(object_id_1)
         r = app.get(url)
         assert_equals(r.status_int, 200)
-        assert_equals(r.headers['Content-Type'],
-                      'text/html; charset=utf-8')
-        assert 'GEMINI record about' in r.body
+        assert_equals(r.headers[u'Content-Type'],
+                      u'text/html; charset=utf-8')
+        assert u'GEMINI record about' in r.body
 
         url = '/harvest/object/{0}/html/original'.format(object_id_1)
         r = app.get(url, status=404)
@@ -262,13 +325,13 @@ class TestHarvestedMetadataAPI(SpatialTestBase, helpers.FunctionalTestBase):
         url = '/harvest/object/{0}/html'.format(object_id_2)
         r = app.get(url)
         assert_equals(r.status_int, 200)
-        assert_equals(r.headers['Content-Type'],
-                      'text/html; charset=utf-8')
-        assert 'GEMINI record about' in r.body
+        assert_equals(r.headers[u'Content-Type'],
+                      u'text/html; charset=utf-8')
+        assert u'GEMINI record about' in r.body
 
         url = '/harvest/object/{0}/html/original'.format(object_id_2)
         r = app.get(url)
         assert_equals(r.status_int, 200)
-        assert_equals(r.headers['Content-Type'],
-                      'text/html; charset=utf-8')
-        assert 'GEMINI record about' in r.body
+        assert_equals(r.headers[u'Content-Type'],
+                      u'text/html; charset=utf-8')
+        assert u'GEMINI record about' in r.body
