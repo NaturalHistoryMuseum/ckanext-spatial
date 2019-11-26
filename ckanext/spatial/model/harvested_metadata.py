@@ -1,22 +1,33 @@
-from lxml import etree
+#!/usr/bin/env python
+# encoding: utf-8
 
 import logging
+
+from lxml import etree
 log = logging.getLogger(__name__)
 
 
 class MappedXmlObject(object):
+    ''' '''
     elements = []
 
 
 class MappedXmlDocument(MappedXmlObject):
+    ''' '''
+
     def __init__(self, xml_str=None, xml_tree=None):
-        assert (xml_str or xml_tree is not None), 'Must provide some XML in one format or another'
+        assert (
+                    xml_str or xml_tree is not None), u'Must provide some XML in one ' \
+                                                      u'format or another'
         self.xml_str = xml_str
         self.xml_tree = xml_tree
 
     def read_values(self):
         '''For all of the elements listed, finds the values of them in the
-        XML and returns them.'''
+        XML and returns them.
+
+
+        '''
         values = {}
         tree = self.get_xml_tree()
         for element in self.elements:
@@ -27,6 +38,9 @@ class MappedXmlDocument(MappedXmlObject):
     def read_value(self, name):
         '''For the given element name, find the value in the XML and return
         it.
+
+        :param name: 
+
         '''
         tree = self.get_xml_tree()
         for element in self.elements:
@@ -35,29 +49,41 @@ class MappedXmlDocument(MappedXmlObject):
         raise KeyError
 
     def get_xml_tree(self):
+        ''' '''
         if self.xml_tree is None:
             parser = etree.XMLParser(remove_blank_text=True)
             if type(self.xml_str) == unicode:
-                xml_str = self.xml_str.encode('utf8')
+                xml_str = self.xml_str.encode(u'utf8')
             else:
                 xml_str = self.xml_str
             self.xml_tree = etree.fromstring(xml_str, parser=parser)
         return self.xml_tree
 
     def infer_values(self, values):
+        '''
+
+        :param values: 
+
+        '''
         pass
 
 
 class MappedXmlElement(MappedXmlObject):
+    ''' '''
     namespaces = {}
 
-    def __init__(self, name, search_paths=[], multiplicity="*", elements=[]):
+    def __init__(self, name, search_paths=[], multiplicity=u'*', elements=[]):
         self.name = name
         self.search_paths = search_paths
         self.multiplicity = multiplicity
         self.elements = elements or self.elements
 
     def read_value(self, tree):
+        '''
+
+        :param tree: 
+
+        '''
         values = []
         for xpath in self.get_search_paths():
             elements = self.get_elements(tree, xpath)
@@ -67,6 +93,7 @@ class MappedXmlElement(MappedXmlObject):
         return self.fix_multiplicity(values)
 
     def get_search_paths(self):
+        ''' '''
         if type(self.search_paths) != type([]):
             search_paths = [self.search_paths]
         else:
@@ -74,9 +101,20 @@ class MappedXmlElement(MappedXmlObject):
         return search_paths
 
     def get_elements(self, tree, xpath):
+        '''
+
+        :param tree: 
+        :param xpath: 
+
+        '''
         return tree.xpath(xpath, namespaces=self.namespaces)
 
     def get_values(self, elements):
+        '''
+
+        :param elements: 
+
+        '''
         values = []
         if len(elements) == 0:
             pass
@@ -87,6 +125,11 @@ class MappedXmlElement(MappedXmlObject):
         return values
 
     def get_value(self, element):
+        '''
+
+        :param element: 
+
+        '''
         if self.elements:
             value = {}
             for child in self.elements:
@@ -101,771 +144,934 @@ class MappedXmlElement(MappedXmlObject):
         return value
 
     def element_tostring(self, element):
+        '''
+
+        :param element: 
+
+        '''
         return etree.tostring(element, pretty_print=False)
 
     def fix_multiplicity(self, values):
-        '''
-        When a field contains multiple values, yet the spec says
+        '''When a field contains multiple values, yet the spec says
         it should contain only one, then return just the first value,
         rather than a list.
-
+        
         In the ISO19115 specification, multiplicity relates to:
         * 'Association Cardinality'
         * 'Obligation/Condition' & 'Maximum Occurence'
+
+        :param values: 
+
         '''
-        if self.multiplicity == "0":
+        if self.multiplicity == u'0':
             # 0 = None
             if values:
-                log.warn("Values found for element '%s' when multiplicity should be 0: %s",  self.name, values)
-            return ""
-        elif self.multiplicity == "1":
+                log.warn(
+                    u"Values found for element '%s' when multiplicity should be 0: %s",
+                    self.name, values)
+            return u''
+        elif self.multiplicity == u'1':
             # 1 = Mandatory, maximum 1 = Exactly one
             if not values:
-                log.warn("Value not found for element '%s'" % self.name)
-                return ''
+                log.warn(u"Value not found for element '%s'" % self.name)
+                return u''
             return values[0]
-        elif self.multiplicity == "*":
+        elif self.multiplicity == u'*':
             # * = 0..* = zero or more
             return values
-        elif self.multiplicity == "0..1":
+        elif self.multiplicity == u'0..1':
             # 0..1 = Mandatory, maximum 1 = optional (zero or one)
             if values:
                 return values[0]
             else:
-                return ""
-        elif self.multiplicity == "1..*":
+                return u''
+        elif self.multiplicity == u'1..*':
             # 1..* = one or more
             return values
         else:
-            log.warning('Multiplicity not specified for element: %s',
+            log.warning(u'Multiplicity not specified for element: %s',
                         self.name)
             return values
 
 
 class ISOElement(MappedXmlElement):
+    ''' '''
 
     namespaces = {
-       "gts": "http://www.isotc211.org/2005/gts",
-       "gml": "http://www.opengis.net/gml/3.2",
-       "gmx": "http://www.isotc211.org/2005/gmx",
-       "gsr": "http://www.isotc211.org/2005/gsr",
-       "gss": "http://www.isotc211.org/2005/gss",
-       "gco": "http://www.isotc211.org/2005/gco",
-       "gmd": "http://www.isotc211.org/2005/gmd",
-       "srv": "http://www.isotc211.org/2005/srv",
-       "xlink": "http://www.w3.org/1999/xlink",
-       "xsi": "http://www.w3.org/2001/XMLSchema-instance",
-    }
+        u'gts': u'http://www.isotc211.org/2005/gts',
+        u'gml': u'http://www.opengis.net/gml',
+        u'gml32': u'http://www.opengis.net/gml/3.2',
+        u'gmx': u'http://www.isotc211.org/2005/gmx',
+        u'gsr': u'http://www.isotc211.org/2005/gsr',
+        u'gss': u'http://www.isotc211.org/2005/gss',
+        u'gco': u'http://www.isotc211.org/2005/gco',
+        u'gmd': u'http://www.isotc211.org/2005/gmd',
+        u'srv': u'http://www.isotc211.org/2005/srv',
+        u'xlink': u'http://www.w3.org/1999/xlink',
+        u'xsi': u'http://www.w3.org/2001/XMLSchema-instance',
+        }
 
 
 class ISOResourceLocator(ISOElement):
+    ''' '''
 
     elements = [
         ISOElement(
-            name="url",
+            name=u'url',
             search_paths=[
-                "gmd:linkage/gmd:URL/text()",
-            ],
-            multiplicity="1",
-        ),
+                u'gmd:linkage/gmd:URL/text()',
+                ],
+            multiplicity=u'1',
+            ),
         ISOElement(
-            name="function",
+            name=u'function',
             search_paths=[
-                "gmd:function/gmd:CI_OnLineFunctionCode/@codeListValue",
-            ],
-            multiplicity="0..1",
-        ),
+                u'gmd:function/gmd:CI_OnLineFunctionCode/@codeListValue',
+                ],
+            multiplicity=u'0..1',
+            ),
         ISOElement(
-            name="name",
+            name=u'name',
             search_paths=[
-                "gmd:name/gco:CharacterString/text()",
-            ],
-            multiplicity="0..1",
-        ),
+                u'gmd:name/gco:CharacterString/text()',
+                ],
+            multiplicity=u'0..1',
+            ),
         ISOElement(
-            name="description",
+            name=u'description',
             search_paths=[
-                "gmd:description/gco:CharacterString/text()",
-            ],
-            multiplicity="0..1",
-        ),
+                u'gmd:description/gco:CharacterString/text()',
+                ],
+            multiplicity=u'0..1',
+            ),
         ISOElement(
-            name="protocol",
+            name=u'protocol',
             search_paths=[
-                "gmd:protocol/gco:CharacterString/text()",
-            ],
-            multiplicity="0..1",
-        ),
+                u'gmd:protocol/gco:CharacterString/text()',
+                ],
+            multiplicity=u'0..1',
+            ),
         ]
 
 
 class ISOResponsibleParty(ISOElement):
+    ''' '''
 
     elements = [
         ISOElement(
-            name="individual-name",
+            name=u'individual-name',
             search_paths=[
-                "gmd:individualName/gco:CharacterString/text()",
-            ],
-            multiplicity="0..1",
-        ),
+                u'gmd:individualName/gco:CharacterString/text()',
+                ],
+            multiplicity=u'0..1',
+            ),
         ISOElement(
-            name="organisation-name",
+            name=u'organisation-name',
             search_paths=[
-                "gmd:organisationName/gco:CharacterString/text()",
-            ],
-            multiplicity="0..1",
-        ),
+                u'gmd:organisationName/gco:CharacterString/text()',
+                ],
+            multiplicity=u'0..1',
+            ),
         ISOElement(
-            name="position-name",
+            name=u'position-name',
             search_paths=[
-                "gmd:positionName/gco:CharacterString/text()",
-            ],
-            multiplicity="0..1",
-        ),
+                u'gmd:positionName/gco:CharacterString/text()',
+                ],
+            multiplicity=u'0..1',
+            ),
         ISOElement(
-            name="contact-info",
+            name=u'contact-info',
             search_paths=[
-                "gmd:contactInfo/gmd:CI_Contact",
-            ],
-            multiplicity="0..1",
-            elements = [
+                u'gmd:contactInfo/gmd:CI_Contact',
+                ],
+            multiplicity=u'0..1',
+            elements=[
                 ISOElement(
-                    name="email",
+                    name=u'email',
                     search_paths=[
-                        "gmd:address/gmd:CI_Address/gmd:electronicMailAddress/gco:CharacterString/text()",
-                    ],
-                    multiplicity="0..1",
-                ),
+                        u'gmd:address/gmd:CI_Address/gmd:electronicMailAddress/gco'
+                        u':CharacterString/text()',
+                        ],
+                    multiplicity=u'0..1',
+                    ),
                 ISOResourceLocator(
-                    name="online-resource",
+                    name=u'online-resource',
                     search_paths=[
-                        "gmd:onlineResource/gmd:CI_OnlineResource",
-                    ],
-                    multiplicity="0..1",
-                ),
+                        u'gmd:onlineResource/gmd:CI_OnlineResource',
+                        ],
+                    multiplicity=u'0..1',
+                    ),
 
-            ]
-        ),
+                ]
+            ),
         ISOElement(
-            name="role",
+            name=u'role',
             search_paths=[
-                "gmd:role/gmd:CI_RoleCode/@codeListValue",
-            ],
-            multiplicity="0..1",
-        ),
-    ]
+                u'gmd:role/gmd:CI_RoleCode/@codeListValue',
+                ],
+            multiplicity=u'0..1',
+            ),
+        ]
 
 
 class ISODataFormat(ISOElement):
+    ''' '''
 
     elements = [
         ISOElement(
-            name="name",
+            name=u'name',
             search_paths=[
-                "gmd:name/gco:CharacterString/text()",
-            ],
-            multiplicity="0..1",
-        ),
+                u'gmd:name/gco:CharacterString/text()',
+                ],
+            multiplicity=u'0..1',
+            ),
         ISOElement(
-            name="version",
+            name=u'version',
             search_paths=[
-                "gmd:version/gco:CharacterString/text()",
-            ],
-            multiplicity="0..1",
-        ),
-    ]
+                u'gmd:version/gco:CharacterString/text()',
+                ],
+            multiplicity=u'0..1',
+            ),
+        ]
 
 
 class ISOReferenceDate(ISOElement):
+    ''' '''
 
     elements = [
         ISOElement(
-            name="type",
+            name=u'type',
             search_paths=[
-                "gmd:dateType/gmd:CI_DateTypeCode/@codeListValue",
-                "gmd:dateType/gmd:CI_DateTypeCode/text()",
-            ],
-            multiplicity="1",
-        ),
+                u'gmd:dateType/gmd:CI_DateTypeCode/@codeListValue',
+                u'gmd:dateType/gmd:CI_DateTypeCode/text()',
+                ],
+            multiplicity=u'1',
+            ),
         ISOElement(
-            name="value",
+            name=u'value',
             search_paths=[
-                "gmd:date/gco:Date/text()",
-                "gmd:date/gco:DateTime/text()",
-            ],
-            multiplicity="1",
-        ),
-    ]
+                u'gmd:date/gco:Date/text()',
+                u'gmd:date/gco:DateTime/text()',
+                ],
+            multiplicity=u'1',
+            ),
+        ]
+
 
 class ISOCoupledResources(ISOElement):
+    ''' '''
 
     elements = [
         ISOElement(
-            name="title",
+            name=u'title',
             search_paths=[
-                "@xlink:title",
-            ],
-            multiplicity="*",
-        ),
+                u'@xlink:title',
+                ],
+            multiplicity=u'*',
+            ),
         ISOElement(
-            name="href",
+            name=u'href',
             search_paths=[
-                "@xlink:href",
-            ],
-            multiplicity="*",
-        ),
+                u'@xlink:href',
+                ],
+            multiplicity=u'*',
+            ),
         ISOElement(
-            name="uuid",
+            name=u'uuid',
             search_paths=[
-                "@uuidref",
-            ],
-            multiplicity="*",
-        ),
+                u'@uuidref',
+                ],
+            multiplicity=u'*',
+            ),
 
-    ]
+        ]
 
 
 class ISOBoundingBox(ISOElement):
+    ''' '''
 
     elements = [
         ISOElement(
-            name="west",
+            name=u'west',
             search_paths=[
-                "gmd:westBoundLongitude/gco:Decimal/text()",
-            ],
-            multiplicity="1",
-        ),
+                u'gmd:westBoundLongitude/gco:Decimal/text()',
+                ],
+            multiplicity=u'1',
+            ),
         ISOElement(
-            name="east",
+            name=u'east',
             search_paths=[
-                "gmd:eastBoundLongitude/gco:Decimal/text()",
-            ],
-            multiplicity="1",
-        ),
+                u'gmd:eastBoundLongitude/gco:Decimal/text()',
+                ],
+            multiplicity=u'1',
+            ),
         ISOElement(
-            name="north",
+            name=u'north',
             search_paths=[
-                "gmd:northBoundLatitude/gco:Decimal/text()",
-            ],
-            multiplicity="1",
-        ),
+                u'gmd:northBoundLatitude/gco:Decimal/text()',
+                ],
+            multiplicity=u'1',
+            ),
         ISOElement(
-            name="south",
+            name=u'south',
             search_paths=[
-                "gmd:southBoundLatitude/gco:Decimal/text()",
-            ],
-            multiplicity="1",
-        ),
-    ]
+                u'gmd:southBoundLatitude/gco:Decimal/text()',
+                ],
+            multiplicity=u'1',
+            ),
+        ]
+
 
 class ISOBrowseGraphic(ISOElement):
+    ''' '''
 
     elements = [
         ISOElement(
-            name="file",
+            name=u'file',
             search_paths=[
-                "gmd:fileName/gco:CharacterString/text()",
-            ],
-            multiplicity="1",
-        ),
+                u'gmd:fileName/gco:CharacterString/text()',
+                ],
+            multiplicity=u'1',
+            ),
         ISOElement(
-            name="description",
+            name=u'description',
             search_paths=[
-                "gmd:fileDescription/gco:CharacterString/text()",
-            ],
-            multiplicity="0..1",
-        ),
+                u'gmd:fileDescription/gco:CharacterString/text()',
+                ],
+            multiplicity=u'0..1',
+            ),
         ISOElement(
-            name="type",
+            name=u'type',
             search_paths=[
-                "gmd:fileType/gco:CharacterString/text()",
-            ],
-            multiplicity="0..1",
-        ),
-    ]
+                u'gmd:fileType/gco:CharacterString/text()',
+                ],
+            multiplicity=u'0..1',
+            ),
+        ]
 
 
 class ISOKeyword(ISOElement):
+    ''' '''
 
     elements = [
         ISOElement(
-            name="keyword",
+            name=u'keyword',
             search_paths=[
-                "gmd:keyword/gco:CharacterString/text()",
-            ],
-            multiplicity="*",
-        ),
+                u'gmd:keyword/gco:CharacterString/text()',
+                ],
+            multiplicity=u'*',
+            ),
         ISOElement(
-            name="type",
+            name=u'type',
             search_paths=[
-                "gmd:type/gmd:MD_KeywordTypeCode/@codeListValue",
-                "gmd:type/gmd:MD_KeywordTypeCode/text()",
-            ],
-            multiplicity="0..1",
-        ),
+                u'gmd:type/gmd:MD_KeywordTypeCode/@codeListValue',
+                u'gmd:type/gmd:MD_KeywordTypeCode/text()',
+                ],
+            multiplicity=u'0..1',
+            ),
         # If Thesaurus information is needed at some point, this is the
         # place to add it
-   ]
+        ]
 
 
 class ISOUsage(ISOElement):
+    ''' '''
 
     elements = [
         ISOElement(
-            name="usage",
+            name=u'usage',
             search_paths=[
-                "gmd:specificUsage/gco:CharacterString/text()",
-            ],
-            multiplicity="0..1",
-        ),
+                u'gmd:specificUsage/gco:CharacterString/text()',
+                ],
+            multiplicity=u'0..1',
+            ),
         ISOResponsibleParty(
-            name="contact-info",
+            name=u'contact-info',
             search_paths=[
-                "gmd:userContactInfo/gmd:CI_ResponsibleParty",
-            ],
-            multiplicity="0..1",
-        ),
+                u'gmd:userContactInfo/gmd:CI_ResponsibleParty',
+                ],
+            multiplicity=u'0..1',
+            ),
 
-   ]
+        ]
 
 
 class ISOAggregationInfo(ISOElement):
+    ''' '''
 
     elements = [
         ISOElement(
-            name="aggregate-dataset-name",
+            name=u'aggregate-dataset-name',
             search_paths=[
-                "gmd:aggregateDatasetName/gmd:CI_Citation/gmd:title/gco:CharacterString/text()",
-            ],
-            multiplicity="0..1",
-        ),
+                u'gmd:aggregateDatasetName/gmd:CI_Citation/gmd:title/gco'
+                u':CharacterString/text()',
+                ],
+            multiplicity=u'0..1',
+            ),
         ISOElement(
-            name="aggregate-dataset-identifier",
+            name=u'aggregate-dataset-identifier',
             search_paths=[
-                "gmd:aggregateDatasetIdentifier/gmd:MD_Identifier/gmd:code/gco:CharacterString/text()",
-            ],
-            multiplicity="0..1",
-        ),
+                u'gmd:aggregateDatasetIdentifier/gmd:MD_Identifier/gmd:code/gco'
+                u':CharacterString/text()',
+                ],
+            multiplicity=u'0..1',
+            ),
         ISOElement(
-            name="association-type",
+            name=u'association-type',
             search_paths=[
-                "gmd:associationType/gmd:DS_AssociationTypeCode/@codeListValue",
-                "gmd:associationType/gmd:DS_AssociationTypeCode/text()",
-            ],
-            multiplicity="0..1",
-        ),
+                u'gmd:associationType/gmd:DS_AssociationTypeCode/@codeListValue',
+                u'gmd:associationType/gmd:DS_AssociationTypeCode/text()',
+                ],
+            multiplicity=u'0..1',
+            ),
         ISOElement(
-            name="initiative-type",
+            name=u'initiative-type',
             search_paths=[
-                "gmd:initiativeType/gmd:DS_InitiativeTypeCode/@codeListValue",
-                "gmd:initiativeType/gmd:DS_InitiativeTypeCode/text()",
-            ],
-            multiplicity="0..1",
-        ),
-   ]
+                u'gmd:initiativeType/gmd:DS_InitiativeTypeCode/@codeListValue',
+                u'gmd:initiativeType/gmd:DS_InitiativeTypeCode/text()',
+                ],
+            multiplicity=u'0..1',
+            ),
+        ]
 
 
 class ISODocument(MappedXmlDocument):
+    ''' '''
 
     # Attribute specifications from "XPaths for GEMINI" by Peter Parslow.
 
     elements = [
         ISOElement(
-            name="guid",
-            search_paths="gmd:fileIdentifier/gco:CharacterString/text()",
-            multiplicity="0..1",
-        ),
+            name=u'guid',
+            search_paths=u'gmd:fileIdentifier/gco:CharacterString/text()',
+            multiplicity=u'0..1',
+            ),
         ISOElement(
-            name="metadata-language",
+            name=u'metadata-language',
             search_paths=[
-                "gmd:language/gmd:LanguageCode/@codeListValue",
-                "gmd:language/gmd:LanguageCode/text()",
-            ],
-            multiplicity="0..1",
-        ),
+                u'gmd:language/gmd:LanguageCode/@codeListValue',
+                u'gmd:language/gmd:LanguageCode/text()',
+                ],
+            multiplicity=u'0..1',
+            ),
         ISOElement(
-            name="metadata-standard-name",
-            search_paths="gmd:metadataStandardName/gco:CharacterString/text()",
-            multiplicity="0..1",
-        ),
+            name=u'metadata-standard-name',
+            search_paths=u'gmd:metadataStandardName/gco:CharacterString/text()',
+            multiplicity=u'0..1',
+            ),
         ISOElement(
-            name="metadata-standard-version",
-            search_paths="gmd:metadataStandardVersion/gco:CharacterString/text()",
-            multiplicity="0..1",
-        ),
+            name=u'metadata-standard-version',
+            search_paths=u'gmd:metadataStandardVersion/gco:CharacterString/text()',
+            multiplicity=u'0..1',
+            ),
         ISOElement(
-            name="resource-type",
+            name=u'resource-type',
             search_paths=[
-                "gmd:hierarchyLevel/gmd:MD_ScopeCode/@codeListValue",
-                "gmd:hierarchyLevel/gmd:MD_ScopeCode/text()",
-            ],
-            multiplicity="*",
-        ),
+                u'gmd:hierarchyLevel/gmd:MD_ScopeCode/@codeListValue',
+                u'gmd:hierarchyLevel/gmd:MD_ScopeCode/text()',
+                ],
+            multiplicity=u'*',
+            ),
         ISOResponsibleParty(
-            name="metadata-point-of-contact",
+            name=u'metadata-point-of-contact',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:pointOfContact/gmd:CI_ResponsibleParty",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:pointOfContact/gmd:CI_ResponsibleParty",
-            ],
-            multiplicity="1..*",
-        ),
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd:pointOfContact'
+                u'/gmd:CI_ResponsibleParty',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/gmd'
+                u':pointOfContact/gmd:CI_ResponsibleParty',
+                ],
+            multiplicity=u'1..*',
+            ),
         ISOElement(
-            name="metadata-date",
+            name=u'metadata-date',
             search_paths=[
-                "gmd:dateStamp/gco:DateTime/text()",
-                "gmd:dateStamp/gco:Date/text()",
-            ],
-            multiplicity="1",
-        ),
+                u'gmd:dateStamp/gco:DateTime/text()',
+                u'gmd:dateStamp/gco:Date/text()',
+                ],
+            multiplicity=u'1',
+            ),
         ISOElement(
-            name="spatial-reference-system",
+            name=u'spatial-reference-system',
             search_paths=[
-                "gmd:referenceSystemInfo/gmd:MD_ReferenceSystem/gmd:referenceSystemIdentifier/gmd:RS_Identifier/gmd:code/gco:CharacterString/text()",
-            ],
-            multiplicity="0..1",
-        ),
+                u'gmd:referenceSystemInfo/gmd:MD_ReferenceSystem/gmd'
+                u':referenceSystemIdentifier/gmd:RS_Identifier/gmd:code/gco'
+                u':CharacterString/text()',
+                ],
+            multiplicity=u'0..1',
+            ),
         ISOElement(
-            name="title",
+            name=u'title',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:citation/gmd:CI_Citation/gmd:title/gco:CharacterString/text()",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:citation/gmd:CI_Citation/gmd:title/gco:CharacterString/text()",
-            ],
-            multiplicity="1",
-        ),
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd:citation/gmd'
+                u':CI_Citation/gmd:title/gco:CharacterString/text()',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:citation/gmd'
+                u':CI_Citation/gmd:title/gco:CharacterString/text()',
+                ],
+            multiplicity=u'1',
+            ),
         ISOElement(
-            name="alternate-title",
+            name=u'alternate-title',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:citation/gmd:CI_Citation/gmd:alternateTitle/gco:CharacterString/text()",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:citation/gmd:CI_Citation/gmd:alternateTitle/gco:CharacterString/text()",
-            ],
-            multiplicity="*",
-        ),
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd:citation/gmd'
+                u':CI_Citation/gmd:alternateTitle/gco:CharacterString/text()',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:citation/gmd'
+                u':CI_Citation/gmd:alternateTitle/gco:CharacterString/text()',
+                ],
+            multiplicity=u'*',
+            ),
         ISOReferenceDate(
-            name="dataset-reference-date",
+            name=u'dataset-reference-date',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:citation/gmd:CI_Citation/gmd:date/gmd:CI_Date",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:citation/gmd:CI_Citation/gmd:date/gmd:CI_Date",
-            ],
-            multiplicity="1..*",
-        ),
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd:citation/gmd'
+                u':CI_Citation/gmd:date/gmd:CI_Date',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:citation/gmd'
+                u':CI_Citation/gmd:date/gmd:CI_Date',
+                ],
+            multiplicity=u'1..*',
+            ),
         ISOElement(
-            name="unique-resource-identifier",
+            name=u'unique-resource-identifier',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:citation/gmd:CI_Citation/gmd:identifier/gmd:MD_Identifier/gmd:code/gco:CharacterString/text()",
-                "gmd:identificationInfo/gmd:SV_ServiceIdentification/gmd:citation/gmd:CI_Citation/gmd:identifier/gmd:MD_Identifier/gmd:code/gco:CharacterString/text()",
-            ],
-            multiplicity="0..1",
-        ),
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd:citation/gmd'
+                u':CI_Citation/gmd:identifier/gmd:MD_Identifier/gmd:code/gco'
+                u':CharacterString/text()',
+                u'gmd:identificationInfo/gmd:SV_ServiceIdentification/gmd:citation/gmd'
+                u':CI_Citation/gmd:identifier/gmd:MD_Identifier/gmd:code/gco'
+                u':CharacterString/text()',
+                ],
+            multiplicity=u'0..1',
+            ),
         ISOElement(
-            name="presentation-form",
+            name=u'presentation-form',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:citation/gmd:CI_Citation/gmd:presentationForm/gmd:CI_PresentationFormCode/text()",
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:citation/gmd:CI_Citation/gmd:presentationForm/gmd:CI_PresentationFormCode/@codeListValue",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:citation/gmd:CI_Citation/gmd:presentationForm/gmd:CI_PresentationFormCode/text()",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:citation/gmd:CI_Citation/gmd:presentationForm/gmd:CI_PresentationFormCode/@codeListValue",
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd:citation/gmd'
+                u':CI_Citation/gmd:presentationForm/gmd:CI_PresentationFormCode/text()',
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd:citation/gmd'
+                u':CI_Citation/gmd:presentationForm/gmd:CI_PresentationFormCode'
+                u'/@codeListValue',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:citation/gmd'
+                u':CI_Citation/gmd:presentationForm/gmd:CI_PresentationFormCode/text()',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:citation/gmd'
+                u':CI_Citation/gmd:presentationForm/gmd:CI_PresentationFormCode'
+                u'/@codeListValue',
 
-            ],
-            multiplicity="*",
-        ),
+                ],
+            multiplicity=u'*',
+            ),
         ISOElement(
-            name="abstract",
+            name=u'abstract',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:abstract/gco:CharacterString/text()",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:abstract/gco:CharacterString/text()",
-            ],
-            multiplicity="1",
-        ),
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd:abstract/gco'
+                u':CharacterString/text()',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:abstract/gco'
+                u':CharacterString/text()',
+                ],
+            multiplicity=u'1',
+            ),
         ISOElement(
-            name="purpose",
+            name=u'purpose',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:purpose/gco:CharacterString/text()",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:purpose/gco:CharacterString/text()",
-            ],
-            multiplicity="0..1",
-        ),
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd:purpose/gco'
+                u':CharacterString/text()',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:purpose/gco'
+                u':CharacterString/text()',
+                ],
+            multiplicity=u'0..1',
+            ),
         ISOResponsibleParty(
-            name="responsible-organisation",
+            name=u'responsible-organisation',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:pointOfContact/gmd:CI_ResponsibleParty",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:pointOfContact/gmd:CI_ResponsibleParty",
-                "gmd:contact/gmd:CI_ResponsibleParty",
-            ],
-            multiplicity="1..*",
-        ),
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd:pointOfContact'
+                u'/gmd:CI_ResponsibleParty',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/gmd'
+                u':pointOfContact/gmd:CI_ResponsibleParty',
+                u'gmd:contact/gmd:CI_ResponsibleParty',
+                ],
+            multiplicity=u'1..*',
+            ),
         ISOElement(
-            name="frequency-of-update",
+            name=u'frequency-of-update',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:resourceMaintenance/gmd:MD_MaintenanceInformation/gmd:maintenanceAndUpdateFrequency/gmd:MD_MaintenanceFrequencyCode/@codeListValue",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:resourceMaintenance/gmd:MD_MaintenanceInformation/gmd:maintenanceAndUpdateFrequency/gmd:MD_MaintenanceFrequencyCode/@codeListValue",
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:resourceMaintenance/gmd:MD_MaintenanceInformation/gmd:maintenanceAndUpdateFrequency/gmd:MD_MaintenanceFrequencyCode/text()",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:resourceMaintenance/gmd:MD_MaintenanceInformation/gmd:maintenanceAndUpdateFrequency/gmd:MD_MaintenanceFrequencyCode/text()",
-            ],
-            multiplicity="0..1",
-        ),
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd'
+                u':resourceMaintenance/gmd:MD_MaintenanceInformation/gmd'
+                u':maintenanceAndUpdateFrequency/gmd:MD_MaintenanceFrequencyCode'
+                u'/@codeListValue',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/gmd'
+                u':resourceMaintenance/gmd:MD_MaintenanceInformation/gmd'
+                u':maintenanceAndUpdateFrequency/gmd:MD_MaintenanceFrequencyCode'
+                u'/@codeListValue',
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd'
+                u':resourceMaintenance/gmd:MD_MaintenanceInformation/gmd'
+                u':maintenanceAndUpdateFrequency/gmd:MD_MaintenanceFrequencyCode/text()',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/gmd'
+                u':resourceMaintenance/gmd:MD_MaintenanceInformation/gmd'
+                u':maintenanceAndUpdateFrequency/gmd:MD_MaintenanceFrequencyCode/text()',
+                ],
+            multiplicity=u'0..1',
+            ),
         ISOElement(
-            name="maintenance-note",
+            name=u'maintenance-note',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:resourceMaintenance/gmd:MD_MaintenanceInformation/gmd:maintenanceNote/gco:CharacterString/text()",
-                "gmd:identificationInfo/gmd:SV_ServiceIdentification/gmd:resourceMaintenance/gmd:MD_MaintenanceInformation/gmd:maintenanceNote/gco:CharacterString/text()",
-            ],
-            multiplicity="0..1",
-        ),
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd'
+                u':resourceMaintenance/gmd:MD_MaintenanceInformation/gmd'
+                u':maintenanceNote/gco:CharacterString/text()',
+                u'gmd:identificationInfo/gmd:SV_ServiceIdentification/gmd'
+                u':resourceMaintenance/gmd:MD_MaintenanceInformation/gmd'
+                u':maintenanceNote/gco:CharacterString/text()',
+                ],
+            multiplicity=u'0..1',
+            ),
         ISOElement(
-            name="progress",
+            name=u'progress',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:status/gmd:MD_ProgressCode/@codeListValue",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:status/gmd:MD_ProgressCode/@codeListValue",
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:status/gmd:MD_ProgressCode/text()",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:status/gmd:MD_ProgressCode/text()",
-            ],
-            multiplicity="*",
-        ),
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd:status/gmd'
+                u':MD_ProgressCode/@codeListValue',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:status/gmd'
+                u':MD_ProgressCode/@codeListValue',
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd:status/gmd'
+                u':MD_ProgressCode/text()',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:status/gmd'
+                u':MD_ProgressCode/text()',
+                ],
+            multiplicity=u'*',
+            ),
         ISOKeyword(
-            name="keywords",
+            name=u'keywords',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:descriptiveKeywords/gmd:MD_Keywords",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:descriptiveKeywords/gmd:MD_Keywords",
-            ],
-            multiplicity="*"
-        ),
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd'
+                u':descriptiveKeywords/gmd:MD_Keywords',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/gmd'
+                u':descriptiveKeywords/gmd:MD_Keywords',
+                ],
+            multiplicity=u'*'
+            ),
         ISOElement(
-            name="keyword-inspire-theme",
+            name=u'keyword-inspire-theme',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:descriptiveKeywords/gmd:MD_Keywords/gmd:keyword/gco:CharacterString/text()",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:descriptiveKeywords/gmd:MD_Keywords/gmd:keyword/gco:CharacterString/text()",
-            ],
-            multiplicity="*",
-        ),
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd'
+                u':descriptiveKeywords/gmd:MD_Keywords/gmd:keyword/gco:CharacterString'
+                u'/text()',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/gmd'
+                u':descriptiveKeywords/gmd:MD_Keywords/gmd:keyword/gco:CharacterString'
+                u'/text()',
+                ],
+            multiplicity=u'*',
+            ),
         # Deprecated: kept for backwards compatibilty
         ISOElement(
-            name="keyword-controlled-other",
+            name=u'keyword-controlled-other',
             search_paths=[
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/srv:keywords/gmd:MD_Keywords/gmd:keyword/gco:CharacterString/text()",
-            ],
-            multiplicity="*",
-        ),
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/srv:keywords/gmd'
+                u':MD_Keywords/gmd:keyword/gco:CharacterString/text()',
+                ],
+            multiplicity=u'*',
+            ),
         ISOUsage(
-            name="usage",
+            name=u'usage',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:resourceSpecificUsage/gmd:MD_Usage",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:resourceSpecificUsage/gmd:MD_Usage",
-            ],
-            multiplicity="*"
-        ),
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd'
+                u':resourceSpecificUsage/gmd:MD_Usage',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/gmd'
+                u':resourceSpecificUsage/gmd:MD_Usage',
+                ],
+            multiplicity=u'*'
+            ),
         ISOElement(
-            name="limitations-on-public-access",
+            name=u'limitations-on-public-access',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:resourceConstraints/gmd:MD_LegalConstraints/gmd:otherConstraints/gco:CharacterString/text()",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:resourceConstraints/gmd:MD_LegalConstraints/gmd:otherConstraints/gco:CharacterString/text()",
-            ],
-            multiplicity="*",
-        ),
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd'
+                u':resourceConstraints/gmd:MD_LegalConstraints/gmd:otherConstraints'
+                u'/gco:CharacterString/text()',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/gmd'
+                u':resourceConstraints/gmd:MD_LegalConstraints/gmd:otherConstraints'
+                u'/gco:CharacterString/text()',
+                ],
+            multiplicity=u'*',
+            ),
         ISOElement(
-            name="access-constraints",
+            name=u'access-constraints',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:resourceConstraints/gmd:MD_LegalConstraints/gmd:accessConstraints/gmd:MD_RestrictionCode/@codeListValue",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:resourceConstraints/gmd:MD_LegalConstraints/gmd:accessConstraints/gmd:MD_RestrictionCode/@codeListValue",
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:resourceConstraints/gmd:MD_LegalConstraints/gmd:accessConstraints/gmd:MD_RestrictionCode/text()",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:resourceConstraints/gmd:MD_LegalConstraints/gmd:accessConstraints/gmd:MD_RestrictionCode/text()",
-            ],
-            multiplicity="*",
-        ),
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd'
+                u':resourceConstraints/gmd:MD_LegalConstraints/gmd:accessConstraints'
+                u'/gmd:MD_RestrictionCode/@codeListValue',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/gmd'
+                u':resourceConstraints/gmd:MD_LegalConstraints/gmd:accessConstraints'
+                u'/gmd:MD_RestrictionCode/@codeListValue',
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd'
+                u':resourceConstraints/gmd:MD_LegalConstraints/gmd:accessConstraints'
+                u'/gmd:MD_RestrictionCode/text()',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/gmd'
+                u':resourceConstraints/gmd:MD_LegalConstraints/gmd:accessConstraints'
+                u'/gmd:MD_RestrictionCode/text()',
+                ],
+            multiplicity=u'*',
+            ),
 
         ISOElement(
-            name="use-constraints",
+            name=u'use-constraints',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:resourceConstraints/gmd:MD_Constraints/gmd:useLimitation/gco:CharacterString/text()",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:resourceConstraints/gmd:MD_Constraints/gmd:useLimitation/gco:CharacterString/text()",
-            ],
-            multiplicity="*",
-        ),
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd'
+                u':resourceConstraints/gmd:MD_Constraints/gmd:useLimitation/gco'
+                u':CharacterString/text()',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/gmd'
+                u':resourceConstraints/gmd:MD_Constraints/gmd:useLimitation/gco'
+                u':CharacterString/text()',
+                ],
+            multiplicity=u'*',
+            ),
         ISOAggregationInfo(
-            name="aggregation-info",
+            name=u'aggregation-info',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:aggregationInfo/gmd:MD_AggregateInformation",
-                "gmd:identificationInfo/gmd:SV_ServiceIdentification/gmd:aggregationInfo/gmd:MD_AggregateInformation",
-            ],
-            multiplicity="*"
-        ),
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd:aggregationInfo'
+                u'/gmd:MD_AggregateInformation',
+                u'gmd:identificationInfo/gmd:SV_ServiceIdentification/gmd'
+                u':aggregationInfo/gmd:MD_AggregateInformation',
+                ],
+            multiplicity=u'*'
+            ),
         ISOElement(
-            name="spatial-data-service-type",
+            name=u'spatial-data-service-type',
             search_paths=[
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/srv:serviceType/gco:LocalName/text()",
-            ],
-            multiplicity="0..1",
-        ),
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/srv:serviceType'
+                u'/gco:LocalName/text()',
+                ],
+            multiplicity=u'0..1',
+            ),
         ISOElement(
-            name="spatial-resolution",
+            name=u'spatial-resolution',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:spatialResolution/gmd:MD_Resolution/gmd:distance/gco:Distance/text()",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:spatialResolution/gmd:MD_Resolution/gmd:distance/gco:Distance/text()",
-            ],
-            multiplicity="0..1",
-        ),
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd'
+                u':spatialResolution/gmd:MD_Resolution/gmd:distance/gco:Distance/text()',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/gmd'
+                u':spatialResolution/gmd:MD_Resolution/gmd:distance/gco:Distance/text()',
+                ],
+            multiplicity=u'0..1',
+            ),
         ISOElement(
-            name="spatial-resolution-units",
+            name=u'spatial-resolution-units',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:spatialResolution/gmd:MD_Resolution/gmd:distance/gco:Distance/@uom",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:spatialResolution/gmd:MD_Resolution/gmd:distance/gco:Distance/@uom",
-            ],
-            multiplicity="0..1",
-        ),
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd'
+                u':spatialResolution/gmd:MD_Resolution/gmd:distance/gco:Distance/@uom',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/gmd'
+                u':spatialResolution/gmd:MD_Resolution/gmd:distance/gco:Distance/@uom',
+                ],
+            multiplicity=u'0..1',
+            ),
         ISOElement(
-            name="equivalent-scale",
+            name=u'equivalent-scale',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:spatialResolution/gmd:MD_Resolution/gmd:equivalentScale/gmd:MD_RepresentativeFraction/gmd:denominator/gco:Integer/text()",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:spatialResolution/gmd:MD_Resolution/gmd:equivalentScale/gmd:MD_RepresentativeFraction/gmd:denominator/gco:Integer/text()",
-            ],
-            multiplicity="*",
-        ),
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd'
+                u':spatialResolution/gmd:MD_Resolution/gmd:equivalentScale/gmd'
+                u':MD_RepresentativeFraction/gmd:denominator/gco:Integer/text()',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/gmd'
+                u':spatialResolution/gmd:MD_Resolution/gmd:equivalentScale/gmd'
+                u':MD_RepresentativeFraction/gmd:denominator/gco:Integer/text()',
+                ],
+            multiplicity=u'*',
+            ),
         ISOElement(
-            name="dataset-language",
+            name=u'dataset-language',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:language/gmd:LanguageCode/@codeListValue",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:language/gmd:LanguageCode/@codeListValue",
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:language/gmd:LanguageCode/text()",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:language/gmd:LanguageCode/text()",
-            ],
-            multiplicity="*",
-        ),
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd:language/gmd'
+                u':LanguageCode/@codeListValue',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:language/gmd'
+                u':LanguageCode/@codeListValue',
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd:language/gmd'
+                u':LanguageCode/text()',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:language/gmd'
+                u':LanguageCode/text()',
+                ],
+            multiplicity=u'*',
+            ),
         ISOElement(
-            name="topic-category",
+            name=u'topic-category',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:topicCategory/gmd:MD_TopicCategoryCode/text()",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:topicCategory/gmd:MD_TopicCategoryCode/text()",
-            ],
-            multiplicity="*",
-        ),
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd:topicCategory'
+                u'/gmd:MD_TopicCategoryCode/text()',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/gmd'
+                u':topicCategory/gmd:MD_TopicCategoryCode/text()',
+                ],
+            multiplicity=u'*',
+            ),
         ISOElement(
-            name="extent-controlled",
+            name=u'extent-controlled',
             search_paths=[
-            ],
-            multiplicity="*",
-        ),
+                ],
+            multiplicity=u'*',
+            ),
         ISOElement(
-            name="extent-free-text",
+            name=u'extent-free-text',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:extent/gmd:EX_Extent/gmd:geographicElement/gmd:EX_GeographicDescription/gmd:geographicIdentifier/gmd:MD_Identifier/gmd:code/gco:CharacterString/text()",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/srv:extent/gmd:EX_Extent/gmd:geographicElement/gmd:EX_GeographicDescription/gmd:geographicIdentifier/gmd:MD_Identifier/gmd:code/gco:CharacterString/text()",
-            ],
-            multiplicity="*",
-        ),
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd:extent/gmd'
+                u':EX_Extent/gmd:geographicElement/gmd:EX_GeographicDescription/gmd'
+                u':geographicIdentifier/gmd:MD_Identifier/gmd:code/gco:CharacterString'
+                u'/text()',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/srv:extent/gmd'
+                u':EX_Extent/gmd:geographicElement/gmd:EX_GeographicDescription/gmd'
+                u':geographicIdentifier/gmd:MD_Identifier/gmd:code/gco:CharacterString'
+                u'/text()',
+                ],
+            multiplicity=u'*',
+            ),
         ISOBoundingBox(
-            name="bbox",
+            name=u'bbox',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:extent/gmd:EX_Extent/gmd:geographicElement/gmd:EX_GeographicBoundingBox",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/srv:extent/gmd:EX_Extent/gmd:geographicElement/gmd:EX_GeographicBoundingBox",
-            ],
-            multiplicity="*",
-        ),
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd:extent/gmd'
+                u':EX_Extent/gmd:geographicElement/gmd:EX_GeographicBoundingBox',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/srv:extent/gmd'
+                u':EX_Extent/gmd:geographicElement/gmd:EX_GeographicBoundingBox',
+                ],
+            multiplicity=u'*',
+            ),
         ISOElement(
-            name="temporal-extent-begin",
+            name=u'temporal-extent-begin',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:extent/gmd:EX_Extent/gmd:temporalElement/gmd:EX_TemporalExtent/gmd:extent/gml:TimePeriod/gml:beginPosition/text()",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/srv:extent/gmd:EX_Extent/gmd:temporalElement/gmd:EX_TemporalExtent/gmd:extent/gml:TimePeriod/gml:beginPosition/text()",
-            ],
-            multiplicity="*",
-        ),
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd:extent/gmd'
+                u':EX_Extent/gmd:temporalElement/gmd:EX_TemporalExtent/gmd:extent/gml'
+                u':TimePeriod/gml:beginPosition/text()',
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd:extent/gmd'
+                u':EX_Extent/gmd:temporalElement/gmd:EX_TemporalExtent/gmd:extent'
+                u'/gml32:TimePeriod/gml32:beginPosition/text()',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/srv:extent/gmd'
+                u':EX_Extent/gmd:temporalElement/gmd:EX_TemporalExtent/gmd:extent/gml'
+                u':TimePeriod/gml:beginPosition/text()',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/srv:extent/gmd'
+                u':EX_Extent/gmd:temporalElement/gmd:EX_TemporalExtent/gmd:extent'
+                u'/gml32:TimePeriod/gml32:beginPosition/text()',
+                ],
+            multiplicity=u'*',
+            ),
         ISOElement(
-            name="temporal-extent-end",
+            name=u'temporal-extent-end',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:extent/gmd:EX_Extent/gmd:temporalElement/gmd:EX_TemporalExtent/gmd:extent/gml:TimePeriod/gml:endPosition/text()",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/srv:extent/gmd:EX_Extent/gmd:temporalElement/gmd:EX_TemporalExtent/gmd:extent/gml:TimePeriod/gml:endPosition/text()",
-            ],
-            multiplicity="*",
-        ),
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd:extent/gmd'
+                u':EX_Extent/gmd:temporalElement/gmd:EX_TemporalExtent/gmd:extent/gml'
+                u':TimePeriod/gml:endPosition/text()',
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd:extent/gmd'
+                u':EX_Extent/gmd:temporalElement/gmd:EX_TemporalExtent/gmd:extent'
+                u'/gml32:TimePeriod/gml32:endPosition/text()',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/srv:extent/gmd'
+                u':EX_Extent/gmd:temporalElement/gmd:EX_TemporalExtent/gmd:extent/gml'
+                u':TimePeriod/gml:endPosition/text()',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/srv:extent/gmd'
+                u':EX_Extent/gmd:temporalElement/gmd:EX_TemporalExtent/gmd:extent'
+                u'/gml32:TimePeriod/gml32:endPosition/text()',
+                ],
+            multiplicity=u'*',
+            ),
         ISOElement(
-            name="vertical-extent",
+            name=u'vertical-extent',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:extent/gmd:EX_Extent/gmd:verticalElement/gmd:EX_VerticalExtent",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/srv:extent/gmd:EX_Extent/gmd:verticalElement/gmd:EX_VerticalExtent",
-            ],
-            multiplicity="*",
-        ),
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd:extent/gmd'
+                u':EX_Extent/gmd:verticalElement/gmd:EX_VerticalExtent',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/srv:extent/gmd'
+                u':EX_Extent/gmd:verticalElement/gmd:EX_VerticalExtent',
+                ],
+            multiplicity=u'*',
+            ),
         ISOCoupledResources(
-            name="coupled-resource",
+            name=u'coupled-resource',
             search_paths=[
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/srv:operatesOn",
-            ],
-            multiplicity="*",
-        ),
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/srv:operatesOn',
+                ],
+            multiplicity=u'*',
+            ),
         ISOElement(
-            name="additional-information-source",
+            name=u'additional-information-source',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:supplementalInformation/gco:CharacterString/text()",
-            ],
-            multiplicity="0..1",
-        ),
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd'
+                u':supplementalInformation/gco:CharacterString/text()',
+                ],
+            multiplicity=u'0..1',
+            ),
         ISODataFormat(
-            name="data-format",
+            name=u'data-format',
             search_paths=[
-                "gmd:distributionInfo/gmd:MD_Distribution/gmd:distributionFormat/gmd:MD_Format",
-            ],
-            multiplicity="*",
-        ),
+                u'gmd:distributionInfo/gmd:MD_Distribution/gmd:distributionFormat/gmd'
+                u':MD_Format',
+                ],
+            multiplicity=u'*',
+            ),
         ISOResponsibleParty(
-            name="distributor",
+            name=u'distributor',
             search_paths=[
-                "gmd:distributionInfo/gmd:MD_Distribution/gmd:distributor/gmd:MD_Distributor/gmd:distributorContact/gmd:CI_ResponsibleParty",
-            ],
-            multiplicity="*",
-        ),
+                u'gmd:distributionInfo/gmd:MD_Distribution/gmd:distributor/gmd'
+                u':MD_Distributor/gmd:distributorContact/gmd:CI_ResponsibleParty',
+                ],
+            multiplicity=u'*',
+            ),
         ISOResourceLocator(
-            name="resource-locator",
+            name=u'resource-locator',
             search_paths=[
-                "gmd:distributionInfo/gmd:MD_Distribution/gmd:transferOptions/gmd:MD_DigitalTransferOptions/gmd:onLine/gmd:CI_OnlineResource",
-                "gmd:distributionInfo/gmd:MD_Distribution/gmd:distributor/gmd:MD_Distributor/gmd:distributorTransferOptions/gmd:MD_DigitalTransferOptions/gmd:onLine/gmd:CI_OnlineResource"
-            ],
-            multiplicity="*",
-        ),
+                u'gmd:distributionInfo/gmd:MD_Distribution/gmd:transferOptions/gmd'
+                u':MD_DigitalTransferOptions/gmd:onLine/gmd:CI_OnlineResource',
+                u'gmd:distributionInfo/gmd:MD_Distribution/gmd:distributor/gmd'
+                u':MD_Distributor/gmd:distributorTransferOptions/gmd'
+                u':MD_DigitalTransferOptions/gmd:onLine/gmd:CI_OnlineResource'
+                ],
+            multiplicity=u'*',
+            ),
         ISOResourceLocator(
-            name="resource-locator-identification",
+            name=u'resource-locator-identification',
             search_paths=[
-                "gmd:identificationInfo//gmd:CI_OnlineResource",
-            ],
-            multiplicity="*",
-        ),
+                u'gmd:identificationInfo//gmd:CI_OnlineResource',
+                ],
+            multiplicity=u'*',
+            ),
         ISOElement(
-            name="conformity-specification",
+            name=u'conformity-specification',
             search_paths=[
-                "gmd:dataQualityInfo/gmd:DQ_DataQuality/gmd:report/gmd:DQ_DomainConsistency/gmd:result/gmd:DQ_ConformanceResult/gmd:specification",
-            ],
-            multiplicity="0..1",
-        ),
+                u'gmd:dataQualityInfo/gmd:DQ_DataQuality/gmd:report/gmd'
+                u':DQ_DomainConsistency/gmd:result/gmd:DQ_ConformanceResult/gmd'
+                u':specification',
+                ],
+            multiplicity=u'0..1',
+            ),
         ISOElement(
-            name="conformity-pass",
+            name=u'conformity-pass',
             search_paths=[
-                "gmd:dataQualityInfo/gmd:DQ_DataQuality/gmd:report/gmd:DQ_DomainConsistency/gmd:result/gmd:DQ_ConformanceResult/gmd:pass/gco:Boolean/text()",
-            ],
-            multiplicity="0..1",
-        ),
+                u'gmd:dataQualityInfo/gmd:DQ_DataQuality/gmd:report/gmd'
+                u':DQ_DomainConsistency/gmd:result/gmd:DQ_ConformanceResult/gmd:pass'
+                u'/gco:Boolean/text()',
+                ],
+            multiplicity=u'0..1',
+            ),
         ISOElement(
-            name="conformity-explanation",
+            name=u'conformity-explanation',
             search_paths=[
-                "gmd:dataQualityInfo/gmd:DQ_DataQuality/gmd:report/gmd:DQ_DomainConsistency/gmd:result/gmd:DQ_ConformanceResult/gmd:explanation/gco:CharacterString/text()",
-            ],
-            multiplicity="0..1",
-        ),
+                u'gmd:dataQualityInfo/gmd:DQ_DataQuality/gmd:report/gmd'
+                u':DQ_DomainConsistency/gmd:result/gmd:DQ_ConformanceResult/gmd'
+                u':explanation/gco:CharacterString/text()',
+                ],
+            multiplicity=u'0..1',
+            ),
         ISOElement(
-            name="lineage",
+            name=u'lineage',
             search_paths=[
-                "gmd:dataQualityInfo/gmd:DQ_DataQuality/gmd:lineage/gmd:LI_Lineage/gmd:statement/gco:CharacterString/text()",
-            ],
-            multiplicity="0..1",
-        ),
+                u'gmd:dataQualityInfo/gmd:DQ_DataQuality/gmd:lineage/gmd:LI_Lineage'
+                u'/gmd:statement/gco:CharacterString/text()',
+                ],
+            multiplicity=u'0..1',
+            ),
         ISOBrowseGraphic(
-            name="browse-graphic",
+            name=u'browse-graphic',
             search_paths=[
-                "gmd:identificationInfo/gmd:MD_DataIdentification/gmd:graphicOverview/gmd:MD_BrowseGraphic",
-                "gmd:identificationInfo/srv:SV_ServiceIdentification/gmd:graphicOverview/gmd:MD_BrowseGraphic",
-            ],
-            multiplicity="*",
-        ),
+                u'gmd:identificationInfo/gmd:MD_DataIdentification/gmd:graphicOverview'
+                u'/gmd:MD_BrowseGraphic',
+                u'gmd:identificationInfo/srv:SV_ServiceIdentification/gmd'
+                u':graphicOverview/gmd:MD_BrowseGraphic',
+                ],
+            multiplicity=u'*',
+            ),
 
-    ]
+        ]
 
     def infer_values(self, values):
+        '''
+
+        :param values: 
+
+        '''
         # Todo: Infer name.
         self.infer_date_released(values)
         self.infer_date_updated(values)
@@ -879,82 +1085,120 @@ class ISODocument(MappedXmlDocument):
         return values
 
     def infer_date_released(self, values):
-        value = ''
-        for date in values['dataset-reference-date']:
-            if date['type'] == 'publication':
-                value = date['value']
+        '''
+
+        :param values: 
+
+        '''
+        value = u''
+        for date in values[u'dataset-reference-date']:
+            if date[u'type'] == u'publication':
+                value = date[u'value']
                 break
-        values['date-released'] = value
+        values[u'date-released'] = value
 
     def infer_date_updated(self, values):
-        value = ''
+        '''
+
+        :param values: 
+
+        '''
+        value = u''
         dates = []
         # Use last of several multiple revision dates.
-        for date in values['dataset-reference-date']:
-            if date['type'] == 'revision':
-                dates.append(date['value'])
+        for date in values[u'dataset-reference-date']:
+            if date[u'type'] == u'revision':
+                dates.append(date[u'value'])
 
         if len(dates):
             if len(dates) > 1:
                 dates.sort(reverse=True)
             value = dates[0]
 
-        values['date-updated'] = value
+        values[u'date-updated'] = value
 
     def infer_date_created(self, values):
-        value = ''
-        for date in values['dataset-reference-date']:
-            if date['type'] == 'creation':
-                value = date['value']
+        '''
+
+        :param values: 
+
+        '''
+        value = u''
+        for date in values[u'dataset-reference-date']:
+            if date[u'type'] == u'creation':
+                value = date[u'value']
                 break
-        values['date-created'] = value
+        values[u'date-created'] = value
 
     def infer_url(self, values):
-        value = ''
-        for locator in values['resource-locator']:
-            if locator['function'] == 'information':
-                value = locator['url']
+        '''
+
+        :param values: 
+
+        '''
+        value = u''
+        for locator in values[u'resource-locator']:
+            if locator[u'function'] == u'information':
+                value = locator[u'url']
                 break
-        values['url'] = value
+        values[u'url'] = value
 
     def infer_tags(self, values):
+        '''
+
+        :param values: 
+
+        '''
         tags = []
-        for key in ['keyword-inspire-theme', 'keyword-controlled-other']:
+        for key in [u'keyword-inspire-theme', u'keyword-controlled-other']:
             for item in values[key]:
                 if item not in tags:
                     tags.append(item)
-        values['tags'] = tags
+        values[u'tags'] = tags
 
     def infer_publisher(self, values):
-        value = ''
-        for responsible_party in values['responsible-organisation']:
-            if responsible_party['role'] == 'publisher':
-                value = responsible_party['organisation-name']
+        '''
+
+        :param values: 
+
+        '''
+        value = u''
+        for responsible_party in values[u'responsible-organisation']:
+            if responsible_party[u'role'] == u'publisher':
+                value = responsible_party[u'organisation-name']
             if value:
                 break
-        values['publisher'] = value
+        values[u'publisher'] = value
 
     def infer_contact(self, values):
-        value = ''
-        for responsible_party in values['responsible-organisation']:
-            value = responsible_party['organisation-name']
+        '''
+
+        :param values: 
+
+        '''
+        value = u''
+        for responsible_party in values[u'responsible-organisation']:
+            value = responsible_party[u'organisation-name']
             if value:
                 break
-        values['contact'] = value
+        values[u'contact'] = value
 
     def infer_contact_email(self, values):
-        value = ''
-        for responsible_party in values['responsible-organisation']:
+        '''
+
+        :param values: 
+
+        '''
+        value = u''
+        for responsible_party in values[u'responsible-organisation']:
             if isinstance(responsible_party, dict) and \
-               isinstance(responsible_party.get('contact-info'), dict) and \
-               responsible_party['contact-info'].has_key('email'):
-                value = responsible_party['contact-info']['email']
+                    isinstance(responsible_party.get(u'contact-info'), dict) and \
+                    responsible_party[u'contact-info'].has_key(u'email'):
+                value = responsible_party[u'contact-info'][u'email']
                 if value:
                     break
-        values['contact-email'] = value
+        values[u'contact-email'] = value
 
 
 class GeminiDocument(ISODocument):
-    '''
-    For backwards compatibility
-    '''
+    '''For backwards compatibility'''

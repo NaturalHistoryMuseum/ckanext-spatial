@@ -1,217 +1,337 @@
-import logging
-import json
-from pprint import pprint
-from nose.plugins.skip import SkipTest
-from nose.tools import assert_equal, assert_raises
-from ckan.logic.action.create import package_create
-from ckan.logic.action.delete import package_delete
-from ckan.logic.schema import default_create_package_schema
-from ckan import model
+#!/usr/bin/env python
+# encoding: utf-8
 
-from ckan.model import Package, Session
-import ckan.lib.search as search
-from ckan.tests import CreateTestData, setup_test_search_index,WsgiAppCase
-from ckan.tests.functional.api.base import ApiTestCase
-from ckan.tests import TestController as ControllerTestCase
+from nose.plugins.skip import SkipTest
+from nose.tools import assert_equals, assert_raises
+
+from ckan.lib.search import SearchError
+from ckan.model import Session
+try:
+    import ckan.new_tests.helpers as helpers
+    import ckan.new_tests.factories as factories
+except ImportError:
+    import ckan.tests.helpers as helpers
+    import ckan.tests.factories as factories
+
 from ckanext.spatial.tests.base import SpatialTestBase
 
-log = logging.getLogger(__name__)
+extents = {
+    u'nz': u'{"type":"Polygon","coordinates":[[[174,-38],[176,-38],[176,-40],[174,'
+           u'-40],[174,-38]]]}',
+    u'ohio': u'{"type": "Polygon","coordinates": [[[-84,38],[-84,40],[-80,42],[-80,'
+             u'38],[-84,38]]]}',
+    u'dateline': u'{"type":"Polygon","coordinates":[[[169,70],[169,60],[192,60],[192,'
+                 u'70],[169,70]]]}',
+    u'dateline2': u'{"type":"Polygon","coordinates":[[[170,60],[-170,60],[-170,70],'
+                  u'[170,70],[170,60]]]}',
+    }
 
 
+class TestAction(SpatialTestBase):
+    ''' '''
 
-class TestSpatialApi(ApiTestCase,SpatialTestBase,ControllerTestCase):
+    def teardown(self):
+        ''' '''
+        helpers.reset_db()
 
-    api_version = '2'
+    def test_spatial_query(self):
+        ''' '''
 
-    @classmethod
-    def setup_class(self):
-        super(TestSpatialApi,self).setup_class()
-        setup_test_search_index()
-        CreateTestData.create_test_user()
-        self.package_fixture_data = {
-            'name' : u'test-spatial-dataset-search-point',
-            'title': 'Some Title',
-            'extras': [{'key':'spatial','value':self.geojson_examples['point']}]
-        }
-        self.base_url = self.offset('/search/dataset/geo')
+        dataset = factories.Dataset(
+            extras=[{
+                u'key': u'spatial',
+                u'value': self.geojson_examples[u'point']
+                }]
+            )
 
-    def _offset_with_bbox(self,minx=-180,miny=-90,maxx=180,maxy=90,crs=None):
-        offset = self.base_url + '?bbox=%s,%s,%s,%s' % (minx,miny,maxx,maxy)
-        if crs:
-            offset = offset + '&crs=%s' % crs
-        return offset
+        result = helpers.call_action(
+            u'package_search',
+            extras={
+                u'ext_bbox': u'-180,-90,180,90'
+                })
 
-    def test_basic_query(self):
-        schema = default_create_package_schema()
-        context = {'model':model,'session':Session,'user':'tester','extras_as_string':True,'schema':schema,'api_version':2}
-        package_dict = package_create(context,self.package_fixture_data)
-        package_id = context.get('id')
+        assert_equals(result[u'count'], 1)
+        assert_equals(result[u'results'][0][u'id'], dataset[u'id'])
 
-        # Point inside bbox
-        offset = self._offset_with_bbox()
+    def test_spatial_query_outside_bbox(self):
+        ''' '''
 
-        res = self.app.get(offset, status=200)
-        res_dict = self.data_from_res(res)
+        factories.Dataset(
+            extras=[{
+                u'key': u'spatial',
+                u'value': self.geojson_examples[u'point']
+                }]
+            )
 
-        assert res_dict['count'] == 1
-        assert res_dict['results'][0] == package_id
+        result = helpers.call_action(
+            u'package_search',
+            extras={
+                u'ext_bbox': u'-10,-20,10,20'
+                })
 
-        # Point outside bbox
-        offset = self._offset_with_bbox(-10,10,-20,20)
+        assert_equals(result[u'count'], 0)
 
-        res = self.app.get(offset, status=200)
-        res_dict = self.data_from_res(res)
+    def test_spatial_query_wrong_bbox(self):
+        ''' '''
 
-        assert res_dict['count'] == 0
-        assert res_dict['results'] == []
+        assert_raises(SearchError, helpers.call_action,
+                      u'package_search', extras={
+                u'ext_bbox': u'-10,-20,10,a'
+                })
 
-        # Delete the package and ensure it does not come up on
-        # search results
-        package_delete(context,{'id':package_id})
-        offset = self._offset_with_bbox()
+    def test_spatial_query_nz(self):
+        ''' '''
 
-        res = self.app.get(offset, status=200)
-        res_dict = self.data_from_res(res)
+        dataset = factories.Dataset(
+            extras=[{
+                u'key': u'spatial',
+                u'value': extents[u'nz']
+                }]
+            )
 
-        assert res_dict['count'] == 0
-        assert res_dict['results'] == []
+        result = helpers.call_action(
+            u'package_search',
+            extras={
+                u'ext_bbox': u'56,-54,189,-28'
+                })
+
+        assert_equals(result[u'count'], 1)
+        assert_equals(result[u'results'][0][u'id'], dataset[u'id'])
+
+    def test_spatial_query_nz_wrap(self):
+        ''' '''
+
+        dataset = factories.Dataset(
+            extras=[{
+                u'key': u'spatial',
+                u'value': extents[u'nz']
+                }]
+            )
+
+        result = helpers.call_action(
+            u'package_search',
+            extras={
+                u'ext_bbox': u'-203,-54,-167,-28'
+                })
+
+        assert_equals(result[u'count'], 1)
+        assert_equals(result[u'results'][0][u'id'], dataset[u'id'])
+
+    def test_spatial_query_ohio(self):
+        ''' '''
+
+        dataset = factories.Dataset(
+            extras=[{
+                u'key': u'spatial',
+                u'value': extents[u'ohio']
+                }]
+            )
+
+        result = helpers.call_action(
+            u'package_search',
+            extras={
+                u'ext_bbox': u'-110,37,-78,53'
+                })
+
+        assert_equals(result[u'count'], 1)
+        assert_equals(result[u'results'][0][u'id'], dataset[u'id'])
+
+    def test_spatial_query_ohio_wrap(self):
+        ''' '''
+
+        dataset = factories.Dataset(
+            extras=[{
+                u'key': u'spatial',
+                u'value': extents[u'ohio']
+                }]
+            )
+
+        result = helpers.call_action(
+            u'package_search',
+            extras={
+                u'ext_bbox': u'258,37,281,51'
+                })
+
+        assert_equals(result[u'count'], 1)
+        assert_equals(result[u'results'][0][u'id'], dataset[u'id'])
+
+    def test_spatial_query_dateline_1(self):
+        ''' '''
+
+        dataset = factories.Dataset(
+            extras=[{
+                u'key': u'spatial',
+                u'value': extents[u'dateline']
+                }]
+            )
+
+        result = helpers.call_action(
+            u'package_search',
+            extras={
+                u'ext_bbox': u'-197,56,-128,70'
+                })
+
+        assert_equals(result[u'count'], 1)
+        assert_equals(result[u'results'][0][u'id'], dataset[u'id'])
+
+    def test_spatial_query_dateline_2(self):
+        ''' '''
+
+        dataset = factories.Dataset(
+            extras=[{
+                u'key': u'spatial',
+                u'value': extents[u'dateline']
+                }]
+            )
+
+        result = helpers.call_action(
+            u'package_search',
+            extras={
+                u'ext_bbox': u'162,54,237,70'
+                })
+
+        assert_equals(result[u'count'], 1)
+        assert_equals(result[u'results'][0][u'id'], dataset[u'id'])
+
+    def test_spatial_query_dateline_3(self):
+        ''' '''
+
+        dataset = factories.Dataset(
+            extras=[{
+                u'key': u'spatial',
+                u'value': extents[u'dateline2']
+                }]
+            )
+
+        result = helpers.call_action(
+            u'package_search',
+            extras={
+                u'ext_bbox': u'-197,56,-128,70'
+                })
+
+        assert_equals(result[u'count'], 1)
+        assert_equals(result[u'results'][0][u'id'], dataset[u'id'])
+
+    def test_spatial_query_dateline_4(self):
+        ''' '''
+
+        dataset = factories.Dataset(
+            extras=[{
+                u'key': u'spatial',
+                u'value': extents[u'dateline2']
+                }]
+            )
+
+        result = helpers.call_action(
+            u'package_search',
+            extras={
+                u'ext_bbox': u'162,54,237,70'
+                })
+
+        assert_equals(result[u'count'], 1)
+        assert_equals(result[u'results'][0][u'id'], dataset[u'id'])
 
 
+class TestHarvestedMetadataAPI(SpatialTestBase, helpers.FunctionalTestBase):
+    ''' '''
 
-class TestActionPackageSearch(SpatialTestBase,WsgiAppCase):
-
-    @classmethod
-    def setup_class(self):
-        super(TestActionPackageSearch,self).setup_class()
-        setup_test_search_index()
-        self.package_fixture_data_1 = {
-            'name' : u'test-spatial-dataset-search-point-1',
-            'title': 'Some Title 1',
-            'extras': [{'key':'spatial','value':self.geojson_examples['point']}]
-        }
-        self.package_fixture_data_2 = {
-            'name' : u'test-spatial-dataset-search-point-2',
-            'title': 'Some Title 2',
-            'extras': [{'key':'spatial','value':self.geojson_examples['point_2']}]
-        }
-
-        CreateTestData.create()
-
-    @classmethod
-    def teardown_class(self):
-        model.repo.rebuild_db()
-
-    def test_1_basic(self):
-        schema = default_create_package_schema()
-        context = {'model':model,'session':Session,'user':'tester','extras_as_string':True,'schema':schema,'api_version':2}
-        package_dict_1 = package_create(context,self.package_fixture_data_1)
-        del context['package']
-        package_dict_2 = package_create(context,self.package_fixture_data_2)
-
-        postparams = '%s=1' % json.dumps({
-                'q': 'test',
-                'facet.field': ('groups', 'tags', 'res_format', 'license'),
-                'rows': 20,
-                'start': 0,
-                'extras': {
-                    'ext_bbox': '%s,%s,%s,%s' % (10,10,40,40)
-                }
-            })
-        res = self.app.post('/api/action/package_search', params=postparams)
-        res = json.loads(res.body)
-        result = res['result']
-
-        # Only one dataset returned
-        assert_equal(res['success'], True)
-        assert_equal(result['count'], 1)
-        assert_equal(result['results'][0]['name'], 'test-spatial-dataset-search-point-2')
-
-
-class TestHarvestedMetadataAPI(WsgiAppCase):
-
-
-    @classmethod
-    def setup_class(cls):
+    def test_api(self):
+        ''' '''
         try:
-            from ckanext.harvest.model import HarvestObject, HarvestJob, HarvestSource, HarvestObjectExtra
+            from ckanext.harvest.model import (HarvestObject, HarvestJob,
+                                               HarvestSource,
+                                               HarvestObjectExtra)
         except ImportError:
-            raise SkipTest('The harvester extension is needed for these tests')
+            raise SkipTest(u'The harvester extension is needed for these tests')
 
-        cls.content1 = '<xml>Content 1</xml>'
-        ho1 = HarvestObject(guid='test-ho-1',
-                job=HarvestJob(source=HarvestSource(url='http://', type='xx')),
-                            content=cls.content1)
+        content1 = u'<xml>Content 1</xml>'
+        ho1 = HarvestObject(
+            guid=u'test-ho-1',
+            job=HarvestJob(source=HarvestSource(url=u'http://', type=u'xx')),
+            content=content1)
 
-        cls.content2 = '<xml>Content 2</xml>'
-        cls.original_content2 = '<xml>Original Content 2</xml>'
-        ho2 = HarvestObject(guid='test-ho-2',
-                job=HarvestJob(source=HarvestSource(url='http://', type='xx')),
-                            content=cls.content2)
+        content2 = u'<xml>Content 2</xml>'
+        original_content2 = u'<xml>Original Content 2</xml>'
+        ho2 = HarvestObject(
+            guid=u'test-ho-2',
+            job=HarvestJob(source=HarvestSource(url=u'http://', type=u'xx')),
+            content=content2)
 
-        hoe = HarvestObjectExtra(key='original_document',
-                value=cls.original_content2,
-                object=ho2)
+        hoe = HarvestObjectExtra(
+            key=u'original_document',
+            value=original_content2,
+            object=ho2)
 
         Session.add(ho1)
         Session.add(ho2)
         Session.add(hoe)
         Session.commit()
 
-        cls.object_id_1 = ho1.id
-        cls.object_id_2 = ho2.id
+        object_id_1 = ho1.id
+        object_id_2 = ho2.id
 
-
-    def test_api(self):
+        app = self._get_test_app()
 
         # Test redirects for old URLs
-        url = '/api/2/rest/harvestobject/{0}/xml'.format(self.object_id_1)
-        r = self.app.get(url)
-        assert r.status == 301
-        assert '/harvest/object/{0}'.format(self.object_id_1) in r.header_dict['Location']
+        url = '/api/2/rest/harvestobject/{0}/xml'.format(object_id_1)
+        r = app.get(url)
+        assert_equals(r.status_int, 301)
+        assert ('/harvest/object/{0}'.format(object_id_1)
+                in r.headers[u'Location'])
 
-        url = '/api/2/rest/harvestobject/{0}/html'.format(self.object_id_1)
-        r = self.app.get(url)
-        assert r.status == 301
-        assert '/harvest/object/{0}/html'.format(self.object_id_1) in r.header_dict['Location']
-
+        url = '/api/2/rest/harvestobject/{0}/html'.format(object_id_1)
+        r = app.get(url)
+        assert_equals(r.status_int, 301)
+        assert ('/harvest/object/{0}/html'.format(object_id_1)
+                in r.headers[u'Location'])
 
         # Access object content
-        url = '/harvest/object/{0}'.format(self.object_id_1)
-        r = self.app.get(url)
-        assert r.status == 200
-        assert r.header_dict['Content-Type'] == 'application/xml; charset=utf-8'
-        assert r.body == self.content1
+        url = '/harvest/object/{0}'.format(object_id_1)
+        r = app.get(url)
+        assert_equals(r.status_int, 200)
+        assert_equals(r.headers[u'Content-Type'],
+                      u'application/xml; charset=utf-8')
+        assert_equals(
+            r.body,
+            u'<?xml version="1.0" encoding="UTF-8"?>\n<xml>Content 1</xml>')
 
         # Access original content in object extra (if present)
-        url = '/harvest/object/{0}/original'.format(self.object_id_1)
-        r = self.app.get(url, status=404)
-        assert r.status == 404
+        url = '/harvest/object/{0}/original'.format(object_id_1)
+        r = app.get(url, status=404)
+        assert_equals(r.status_int, 404)
 
-        url = '/harvest/object/{0}/original'.format(self.object_id_2)
-        r = self.app.get(url)
-        assert r.status == 200
-        assert r.header_dict['Content-Type'] == 'application/xml; charset=utf-8'
-        assert r.body == self.original_content2
+        url = '/harvest/object/{0}/original'.format(object_id_2)
+        r = app.get(url)
+        assert_equals(r.status_int, 200)
+        assert_equals(r.headers[u'Content-Type'],
+                      u'application/xml; charset=utf-8')
+        assert_equals(
+            r.body,
+            u'<?xml version="1.0" encoding="UTF-8"?>\n'
+            + u'<xml>Original Content 2</xml>')
 
         # Access HTML transformation
-        url = '/harvest/object/{0}/html'.format(self.object_id_1)
-        r = self.app.get(url)
-        assert r.status == 200
-        assert r.header_dict['Content-Type'] == 'text/html; charset=utf-8'
-        assert 'GEMINI record about' in r.body
+        url = '/harvest/object/{0}/html'.format(object_id_1)
+        r = app.get(url)
+        assert_equals(r.status_int, 200)
+        assert_equals(r.headers[u'Content-Type'],
+                      u'text/html; charset=utf-8')
+        assert u'GEMINI record about' in r.body
 
-        url = '/harvest/object/{0}/html/original'.format(self.object_id_1)
-        r = self.app.get(url, status=404)
-        assert r.status == 404
+        url = '/harvest/object/{0}/html/original'.format(object_id_1)
+        r = app.get(url, status=404)
+        assert_equals(r.status_int, 404)
 
-        url = '/harvest/object/{0}/html'.format(self.object_id_2)
-        r = self.app.get(url)
-        assert r.status == 200
-        assert r.header_dict['Content-Type'] == 'text/html; charset=utf-8'
-        assert 'GEMINI record about' in r.body
+        url = '/harvest/object/{0}/html'.format(object_id_2)
+        r = app.get(url)
+        assert_equals(r.status_int, 200)
+        assert_equals(r.headers[u'Content-Type'],
+                      u'text/html; charset=utf-8')
+        assert u'GEMINI record about' in r.body
 
-        url = '/harvest/object/{0}/html/original'.format(self.object_id_2)
-        r = self.app.get(url)
-        assert r.status == 200
-        assert r.header_dict['Content-Type'] == 'text/html; charset=utf-8'
-        assert 'GEMINI record about' in r.body
+        url = '/harvest/object/{0}/html/original'.format(object_id_2)
+        r = app.get(url)
+        assert_equals(r.status_int, 200)
+        assert_equals(r.headers[u'Content-Type'],
+                      u'text/html; charset=utf-8')
+        assert u'GEMINI record about' in r.body

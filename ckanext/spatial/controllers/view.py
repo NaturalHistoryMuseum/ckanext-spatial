@@ -1,39 +1,46 @@
+#!/usr/bin/env python
+# encoding: utf-8
+
 import urllib2
 
-from pylons.i18n import _
-
-import ckan.lib.helpers as h, json
-from ckan.lib.base import BaseController, c, g, request, \
-                          response, session, render, config, abort, redirect
-
 from ckan.model import Package
+from ckan.plugins import toolkit
 
-class ViewController(BaseController):
 
-    def wms_preview(self,id):
-        #check if package exists
-        c.pkg = Package.get(id)
-        if c.pkg is None:
-            abort(404, 'Dataset not found')
+class ViewController(toolkit.BaseController):
+    ''' '''
 
-        for res in c.pkg.resources:
-            if res.format.lower() == 'wms':
-                c.wms_url = res.url if not '?' in res.url else res.url.split('?')[0]
+    def wms_preview(self, id):
+        '''
+
+        :param id: 
+
+        '''
+        # check if package exists
+        toolkit.c.pkg = Package.get(id)
+        if toolkit.c.pkg is None:
+            toolkit.abort(404, u'Dataset not found')
+
+        for res in toolkit.c.pkg.resources:
+            if res.format.lower() == u'wms':
+                toolkit.c.wms_url = res.url \
+                    if u'?' not in res.url else res.url.split(u'?')[0]
                 break
-        if not c.wms_url:
-            abort(400, 'This dataset does not have a WMS resource')
+        if not toolkit.c.wms_url:
+            toolkit.abort(400, u'This dataset does not have a WMS resource')
 
-        return render('ckanext/spatial/wms_preview.html')
+        return toolkit.render(u'ckanext/spatial/wms_preview.html')
 
     def proxy(self):
-        if not 'url' in request.params:
-            abort(400)
+        ''' '''
+        if u'url' not in toolkit.request.params:
+            toolkit.abort(400)
         try:
-            server_response = urllib2.urlopen(request.params['url'])
+            server_response = urllib2.urlopen(toolkit.request.params[u'url'])
             headers = server_response.info()
-            if headers.get('Content-Type'):
-                response.content_type = headers.get('Content-Type')
+            if headers.get(u'Content-Type'):
+                toolkit.response.content_type = headers.get(u'Content-Type')
             return server_response.read()
         except urllib2.HTTPError as e:
-            response.status_int = e.getcode()
+            toolkit.response.status_int = e.getcode()
             return

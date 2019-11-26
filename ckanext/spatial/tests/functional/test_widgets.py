@@ -1,6 +1,9 @@
-from ckan.lib.helpers import url_for
+#!/usr/bin/env python
+# encoding: utf-8
 
 from ckanext.spatial.tests.base import SpatialTestBase
+
+from ckan.plugins import toolkit
 
 try:
     import ckan.new_tests.helpers as helpers
@@ -11,28 +14,34 @@ except ImportError:
 
 
 class TestSpatialWidgets(SpatialTestBase, helpers.FunctionalTestBase):
+    ''' '''
 
     def test_dataset_map(self):
+        ''' '''
         app = self._get_test_app()
 
         user = factories.User()
         dataset = factories.Dataset(
             user=user,
-            extras=[{'key': 'spatial',
-                     'value': self.geojson_examples['point']}]
-        )
-        offset = url_for(controller='package', action='read', id=dataset['id'])
+            extras=[{
+                u'key': u'spatial',
+                u'value': self.geojson_examples[u'point']
+                }]
+            )
+        offset = toolkit.url_for(controller=u'package', action=u'read',
+                                 id=dataset[u'id'])
         res = app.get(offset)
 
-        assert 'data-module="dataset-map"' in res
-        assert 'dataset_map.js' in res
+        assert u'data-module="dataset-map"' in res
+        assert u'dataset_map.js' in res
 
     def test_spatial_search_widget(self):
+        ''' '''
 
         app = self._get_test_app()
 
-        offset = url_for(controller='package', action='search')
+        offset = toolkit.url_for(controller=u'package', action=u'search')
         res = app.get(offset)
 
-        assert 'data-module="spatial-query"' in res
-        assert 'spatial_query.js' in res
+        assert u'data-module="spatial-query"' in res
+        assert u'spatial_query.js' in res
